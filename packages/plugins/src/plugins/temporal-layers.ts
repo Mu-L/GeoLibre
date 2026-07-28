@@ -1,5 +1,7 @@
 import { parseTimeValue, pickGranularity, type TimeGranularity } from "./time-slider-binding";
 
+export const TIME_GRANULARITIES: readonly TimeGranularity[] = ["hour", "day", "month", "year"];
+
 /**
  * A layer whose time is an **internal dimension** rather than a feature property
  * or a separate dated source: a Zarr data cube with a `time` axis, a plugin's
@@ -28,6 +30,16 @@ export interface TemporalLayerAdapter {
    * axis the timeline was bound to. Defaults to `"time"`.
    */
   dimension?: string;
+  /**
+   * Stepping unit for the Time Slider. When omitted, GeoLibre derives one from
+   * the full axis span.
+   */
+  granularity?: TimeGranularity;
+  /**
+   * Units offered by the Time Slider's granularity controls. For example, a
+   * daily cube can use `["day"]` to keep the track and labels at its cadence.
+   */
+  displayUnits?: TimeGranularity[];
 }
 
 /**
@@ -48,6 +60,8 @@ export interface SelectorTimeBinding {
   max: number;
   /** Suggested stepping granularity derived from the axis span. */
   granularity: TimeGranularity;
+  /** Units offered by the Time Slider while this binding is active. */
+  displayUnits?: TimeGranularity[];
 }
 
 /**
@@ -142,6 +156,7 @@ export function nearestTimeIndex(axis: readonly number[], targetMs: number): num
 export function buildSelectorTimeBinding(
   dimension: string,
   values: ReadonlyArray<Date | number | string> | null | undefined,
+  options?: Pick<TemporalLayerAdapter, "granularity" | "displayUnits">,
 ): SelectorTimeBinding | null {
   const axis = toEpochMsAxis(values);
   if (!axis) return null;
@@ -156,13 +171,40 @@ export function buildSelectorTimeBinding(
   // A single-slice cube still needs a non-zero span so the slider can move,
   // matching the vector path's treatment of a single-instant dataset.
   if (max <= min) max = min + 86_400_000;
+  const granularity = options?.granularity ?? pickGranularity(max - min);
+  const displayUnits = options?.displayUnits
+    ? TIME_GRANULARITIES.filter(
+        (unit) => unit === granularity || options.displayUnits?.includes(unit),
+      )
+    : undefined;
   return {
     kind: "selector",
     dimension: dimension.trim() || "time",
     min,
     max,
-    granularity: pickGranularity(max - min),
+    granularity,
+    ...(displayUnits ? { displayUnits } : {}),
   };
+}
+
+/**
+ * Resolve display-unit constraints for a shared slider. Constrained selector
+ * bindings contribute their intersection. If that intersection cannot expose
+ * the active stepping unit, the active unit is the only safe shared control.
+ */
+export function resolveSelectorDisplayUnits(
+  bindings: readonly SelectorTimeBinding[],
+  activeGranularity: TimeGranularity,
+): TimeGranularity[] | undefined {
+  const constrained = bindings.filter(
+    (binding): binding is SelectorTimeBinding & { displayUnits: TimeGranularity[] } =>
+      Boolean(binding.displayUnits?.length),
+  );
+  if (constrained.length === 0) return undefined;
+  const intersection = TIME_GRANULARITIES.filter((unit) =>
+    constrained.every((binding) => binding.displayUnits.includes(unit)),
+  );
+  return intersection.includes(activeGranularity) ? intersection : [activeGranularity];
 }
 
 // ----- Registry --------------------------------------------------------------

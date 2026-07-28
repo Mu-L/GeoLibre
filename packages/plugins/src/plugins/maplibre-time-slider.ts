@@ -18,7 +18,9 @@ import {
   getTemporalLayerAdapter,
   isSelectorTimeBinding,
   nearestTimeIndex,
+  resolveSelectorDisplayUnits,
   subscribeTemporalLayers,
+  TIME_GRANULARITIES,
   toEpochMsAxis,
   type SelectorTimeBinding,
   type TemporalLayerAdapter,
@@ -466,6 +468,7 @@ let preBindingRange: {
   // value (setRange treats a null/undefined end as open).
   end: string | undefined;
   granularity: TimeBinding["granularity"];
+  granularities: TimeGranularity[];
 } | null = null;
 // Guards our own timeFilter writes from re-entering the store subscription.
 let applyingBoundFilters = false;
@@ -758,7 +761,11 @@ function reconcileBoundLayers(control: TimeSliderControl): void {
     ) {
       granularity = pickGranularity(max - min);
     }
-    const rangeKey = `${min}|${max}|${granularity}`;
+    const orderedDisplayUnits = resolveSelectorDisplayUnits(
+      selectors.map(({ binding }) => binding),
+      granularity,
+    );
+    const rangeKey = `${min}|${max}|${granularity}|${orderedDisplayUnits?.join(",") ?? ""}`;
     if (rangeKey !== lastBoundRangeKey) {
       // Capture the range the control had before any binding overrode it, so it
       // can be restored when every binding is later removed.
@@ -768,10 +775,17 @@ function reconcileBoundLayers(control: TimeSliderControl): void {
           start: config.startDate,
           end: config.endDate,
           granularity: config.granularity,
+          granularities: [...(config.granularities ?? TIME_GRANULARITIES)],
         };
       }
       lastBoundRangeKey = rangeKey;
       control.setRange(new Date(min), new Date(max), undefined, granularity);
+      control.setGranularities(
+        orderedDisplayUnits
+          ? orderedDisplayUnits
+          : (preBindingRange?.granularities ??
+              control.getConfig().granularities ?? [...TIME_GRANULARITIES]),
+      );
     }
   } else {
     // The last binding/frame was removed: restore the pre-binding range so any
@@ -783,6 +797,7 @@ function reconcileBoundLayers(control: TimeSliderControl): void {
         undefined,
         preBindingRange.granularity,
       );
+      control.setGranularities(preBindingRange.granularities);
     }
     preBindingRange = null;
     lastBoundRangeKey = null;
@@ -796,6 +811,11 @@ function reconcileBoundLayers(control: TimeSliderControl): void {
   scheduleSelectorTimes(control);
   applyBoundFilters(control, bound);
   applyTimeOverlayVisibility(control, frames);
+}
+
+/** Exercise binding reconciliation with a stub control in unit tests. */
+export function __reconcileBoundLayersForTests(control: TimeSliderControl): void {
+  reconcileBoundLayers(control);
 }
 
 /**

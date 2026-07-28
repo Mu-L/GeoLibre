@@ -8,6 +8,7 @@ import {
   isSelectorTimeBinding,
   nearestTimeIndex,
   registerTemporalLayer,
+  resolveSelectorDisplayUnits,
   subscribeTemporalLayers,
   toEpochMsAxis,
   type TemporalLayerAdapter,
@@ -97,6 +98,54 @@ describe("buildSelectorTimeBinding", () => {
     // 39 days sits in the "day" bucket, matching what a vector binding of the
     // same span would choose, so a cube and a vector layer share one track.
     assert.equal(binding.granularity, "day");
+  });
+
+  it("honors an adapter's granularity and displayed slider units", () => {
+    const values = Array.from({ length: 35 * 365 }, (_, i) => Date.UTC(1990, 0, 1) + i * DAY);
+    const binding = buildSelectorTimeBinding("time", values, {
+      granularity: "day",
+      displayUnits: ["day"],
+    });
+    assert.ok(binding);
+    assert.equal(binding.granularity, "day");
+    assert.deepEqual(binding.displayUnits, ["day"]);
+  });
+
+  it("keeps the active granularity in the displayed slider units", () => {
+    const binding = buildSelectorTimeBinding("time", [Date.UTC(2020, 0, 1), Date.UTC(2020, 0, 2)], {
+      granularity: "day",
+      displayUnits: ["month"],
+    });
+    assert.deepEqual(binding?.displayUnits, ["day", "month"]);
+  });
+
+  it("intersects shared display units and falls back to the active granularity", () => {
+    const base = {
+      kind: "selector" as const,
+      dimension: "time",
+      min: Date.UTC(2020, 0, 1),
+      max: Date.UTC(2020, 0, 2),
+    };
+    assert.deepEqual(
+      resolveSelectorDisplayUnits(
+        [
+          { ...base, granularity: "day", displayUnits: ["day", "month"] },
+          { ...base, granularity: "month", displayUnits: ["month"] },
+        ],
+        "month",
+      ),
+      ["month"],
+    );
+    assert.deepEqual(
+      resolveSelectorDisplayUnits(
+        [
+          { ...base, granularity: "day", displayUnits: ["day"] },
+          { ...base, granularity: "month", displayUnits: ["month"] },
+        ],
+        "day",
+      ),
+      ["day"],
+    );
   });
 
   it("gives a single-slice cube a non-zero span so the slider can still move", () => {
