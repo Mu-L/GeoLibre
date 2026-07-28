@@ -42,6 +42,12 @@ Emscripten or Rust toolchain, and Pyodide is a multi-hour build on its own) is
 not something to promise lightly. Until that is solved, **IzzyOnDroid is the
 realistic route** and the main repository is a longer-term goal.
 
+"Realistic" is not "ready", though. IzzyOnDroid has its own constraints, and
+GeoLibre currently sits outside two of them — app size and downloading
+executable code at runtime. See
+[Submitting to IzzyOnDroid](#submitting-to-izzyondroid) for what has to be
+settled first.
+
 ## What is in this repository
 
 ```text
@@ -103,33 +109,105 @@ showing them would misrepresent the app.
 
 ## Submitting to IzzyOnDroid
 
-Prerequisites, all of which hold today:
+Requests are filed on their Codeberg tracker,
+<https://codeberg.org/IzzyOnDroid/repodata>, with a title of the form
+`[AppRequest] GeoLibre`. (Their old GitLab project is archived and read-only;
+do not file there.) A request is labelled `needs/apk-scan` and
+`needs/on-device-test` and moves through metadata review, a tracker/binary scan,
+and a test install before acceptance.
+
+What already holds:
 
 - [x] MIT license, source in a public repository
-- [x] Signed release APKs attached to each GitHub release
-      (`geolibre-android-*.apk`, produced by `.github/workflows/android.yml`)
+- [x] Developer-signed release APKs attached to each GitHub release
+      (`geolibre-android-*.apk`, produced by `.github/workflows/android.yml`),
+      not debuggable and not `testOnly`
 - [x] `fastlane/metadata/android/en-US/` in the repository
 - [x] No advertising or analytics SDKs to trip the tracker scan
 
-Open a **request packaging** issue on their tracker
-(<https://gitlab.com/IzzyOnDroid/repo>) with the repository URL and the
-applicationId `org.geolibre.app`.
+Three things to resolve *before* filing, in order of how likely they are to
+stop the request.
 
-One thing to settle with them: the release carries **four per-ABI APKs**
-(`arm`, `arm64`, `x86`, `x86_64`) rather than a single universal one, because a
-universal APK is roughly 150 MB against ~40 MB per ABI. Confirm whether their
-tooling should take the per-ABI set or whether a universal APK should be added
-to the release. If it needs one, `npx tauri android build --apk` without
-`--split-per-abi` produces it, and the workflow can attach it alongside the
-others.
+### 1. Size
 
-Expect to be asked about **anti-features**. The likely one is `NonFreeNet`:
-GeoLibre fetches basemap tiles and remote datasets from third-party services,
-and the optional AI assistant talks to a model provider the user configures.
-None of it is required to open and analyze local files, and free sources such as
-OpenFreeMap are available, so the label is arguable rather than automatic. The
-listing text in `full_description.txt` already describes the network use
-plainly, which is the part reviewers care about.
+Their [inclusion policy](https://izzyondroid.org/docs/general/AppInclusionPolicy/)
+reserves roughly **30 MB per app**, and they keep up to **three versions**,
+which must fit within that budget in sum. The shipped v2.3.0 APKs are:
+
+| ABI | Size |
+| --- | --- |
+| `arm` | 41 MB |
+| `arm64` | 45 MB |
+| `x86` | 46 MB |
+| `x86_64` | 46 MB |
+
+So a single ABI is already over the reservation, and offering all four across
+three retained versions would be on the order of half a gigabyte. Two things
+follow:
+
+- **Offer `arm64` only.** It covers essentially every current phone, and it
+  turns the ask from ~540 MB into ~135 MB. The earlier idea of adding a
+  *universal* APK is exactly backwards — at ~150 MB per file it is the worst
+  option for this repository.
+- **Ask for the exception explicitly** rather than hoping it is not noticed.
+  30 MB is a stated default, not an absolute ceiling, but a GIS workspace
+  arriving at 45 MB needs a reason attached.
+
+Trimming below the limit is not a packaging tweak. Almost the entire APK is one
+file:
+
+```text
+lib/arm64-v8a/libgeolibre_desktop_lib.so   44 MB
+classes.dex                                 2 MB
+resources.arsc                              1 MB
+```
+
+Tauri embeds the built web bundle inside that native library, so the size is the
+frontend (MapLibre, Cesium, the HDF5 reader, the GeoAgent bundle, and the rest)
+plus the Rust code. Reducing it means splitting or lazy-loading those chunks,
+which runs straight into the next point.
+
+### 2. Executable code fetched at runtime
+
+The policy forbids **downloading executable binaries without explicit opt-in
+consent**. GeoLibre fetches several from CDNs on first use:
+
+| What | Where from | Triggered by |
+| --- | --- | --- |
+| Pyodide (`pyodide.asm.js`, wasm) | jsDelivr | Python Console, Pyodide vector tools |
+| `onnxruntime-web` | jsDelivr | AI Segmentation / object detection |
+| YOLO ONNX models | jsDelivr | object detection |
+| Draco decoders | unpkg | 3D Tiles |
+| MapLibre / scrollama / RTL text | unpkg | exported story maps |
+
+Each is behind a deliberate user action rather than fetched at startup, which is
+the spirit of the rule, but none of them shows a consent prompt saying "this
+will download and run code from the network." Decide before filing whether to
+argue that feature selection *is* the opt-in, or to add an explicit
+first-use confirmation. Do not resolve the size problem by moving more of the
+bundle to a CDN — that trades a soft limit for a hard rule.
+
+### 3. Two exclusion categories worth reading first
+
+Their published exclusion list has two entries a reviewer could raise:
+
+- **"Web-wrapper apps without added value."** GeoLibre is a Tauri webview app,
+  so the shape matches, but the entire workspace is bundled in the APK and runs
+  offline; it does not load a remote site. Say so in the request rather than
+  waiting to be asked.
+- **"Apps created using generative AI tools."** Listed as excluded. How broadly
+  it is applied is theirs to say, not something to guess at here, but it should
+  be a conscious decision before filing rather than a surprise afterwards.
+
+### Anti-features
+
+Expect `NonFreeNet` to come up: GeoLibre fetches basemap tiles and remote
+datasets from third-party services, and the optional AI assistant talks to a
+model provider the user configures. None of it is required to open and analyze
+local files, and free sources such as OpenFreeMap are available, so the label is
+arguable rather than automatic. The listing text in `full_description.txt`
+already describes the network use plainly, which is the part reviewers care
+about.
 
 ## The main F-Droid repository
 
