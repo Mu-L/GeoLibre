@@ -44,7 +44,7 @@ realistic route** and the main repository is a longer-term goal.
 
 ## What is in this repository
 
-```
+```text
 fastlane/metadata/android/en-US/
 ├── title.txt                       # app name, ≤ 50 characters
 ├── short_description.txt           # one line, ≤ 80 characters
@@ -68,7 +68,7 @@ the listing is versioned alongside the code instead of living in a web console.
 Changelogs are keyed by **versionCode**, not by version name. Tauri derives the
 Android versionCode from `apps/geolibre-desktop/src-tauri/tauri.conf.json`:
 
-```
+```text
 versionCode = major * 1000000 + minor * 1000 + patch
 ```
 

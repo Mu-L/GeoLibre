@@ -53,13 +53,31 @@ function readTextFile(path) {
   }
 }
 
-const tauriConfig = JSON.parse(readFileSync(tauriConfigPath, "utf8"));
-const version = tauriConfig.version;
-const versionCode = versionCodeFor(version);
+// Both entry points below are guarded so that a moved or missing path still
+// reports through the `::error file=...` annotation the CI job renders, rather
+// than aborting with a raw stack trace.
+let version = null;
+let versionCode = null;
+const rawTauriConfig = readTextFile(tauriConfigPath);
+if (rawTauriConfig === null) {
+  errors.push(`Could not read ${tauriConfigPath}.`);
+} else {
+  try {
+    version = JSON.parse(rawTauriConfig).version;
+    versionCode = versionCodeFor(version);
+  } catch (error) {
+    errors.push(`Could not parse ${tauriConfigPath}: ${error.message}`);
+  }
+}
 
-const locales = readdirSync(metadataRoot).filter((entry) =>
-  statSync(join(metadataRoot, entry)).isDirectory(),
-);
+let locales = [];
+try {
+  locales = readdirSync(metadataRoot).filter((entry) =>
+    statSync(join(metadataRoot, entry)).isDirectory(),
+  );
+} catch {
+  // Falls through to the "no locale directories" error below.
+}
 if (locales.length === 0) {
   errors.push(`No locale directories under ${metadataRoot}.`);
 }
