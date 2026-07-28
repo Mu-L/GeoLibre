@@ -13,7 +13,7 @@ import {
   validateMapExpression,
 } from "@geolibre/core";
 import { addProtocol, config } from "maplibre-gl";
-import type maplibregl from "maplibre-gl";
+import type * as maplibregl from "maplibre-gl";
 import type { PropertyValueSpecification } from "maplibre-gl";
 import { FileSource, PMTiles, Protocol } from "pmtiles";
 import {
@@ -55,6 +55,7 @@ import {
 } from "./derived-geometry";
 import { ensureGeneratedImageHandler } from "./generated-images";
 import { prepareFillPattern } from "./fill-patterns";
+import { setDynamicLayoutProperty, setDynamicPaintProperty } from "./dynamic-style-property";
 import { prepareLineDecoration } from "./line-decorations";
 import { markerIconSizeValue, prepareMarker } from "./markers";
 import { isPlaceholderLayer } from "./placeholders";
@@ -1635,7 +1636,7 @@ function syncVectorControlPointSymbology(
   // of the other rule-based paint overrides apply to control-owned layers.
   const radius = proportionalRadiusExpression(layer.style);
   if (radius) {
-    map.setPaintProperty(circleNativeId, "circle-radius", radius);
+    setDynamicPaintProperty(map, circleNativeId, "circle-radius", radius);
     overriddenRadiusIdsFor(map).add(circleNativeId);
   } else {
     restoreOverriddenCircleRadius(map, circleNativeId, layer);
@@ -1690,7 +1691,7 @@ function setExternalNativeLayerPaint(
 
   for (const [property, value] of Object.entries(paint)) {
     try {
-      map.setPaintProperty(nativeLayerId, property, value);
+      setDynamicPaintProperty(map, nativeLayerId, property, value);
     } catch {
       // External controls can create heterogeneous style layers. Ignore paint
       // properties that do not apply to a specific native layer type.
@@ -3347,12 +3348,12 @@ function ensureLayer(
   if (map.getLayer(id)) {
     if (spec.paint) {
       for (const [key, value] of Object.entries(spec.paint)) {
-        map.setPaintProperty(id, key, value);
+        setDynamicPaintProperty(map, id, key, value);
       }
     }
     if (spec.layout) {
       for (const [key, value] of Object.entries(spec.layout)) {
-        map.setLayoutProperty(id, key, value);
+        setDynamicLayoutProperty(map, id, key, value);
       }
     }
     if ("filter" in spec) {
