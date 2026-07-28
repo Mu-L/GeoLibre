@@ -1,0 +1,55 @@
+GeoLibre is a free and open-source, lightweight, cloud-native GIS platform for
+visualizing, exploring, and analyzing geospatial data. The Android app is the
+same workspace that runs on the desktop and in the browser, built from one
+codebase with Tauri v2, React, MapLibre GL JS, DuckDB-WASM Spatial, and deck.gl.
+
+Your data stays on your device. GeoLibre has no account, no telemetry, and no
+backend that stores what you open. Files you add are read locally in the app.
+
+<b>Map and visualize</b>
+
+* Vector data: GeoJSON, Shapefile (zipped), GeoPackage, GeoParquet, FlatGeobuf,
+  CSV, KML/KMZ, GPX, and more, read in the app with DuckDB-WASM Spatial
+* Raster and imagery: Cloud Optimized GeoTIFF, STAC items and collections, and
+  tiled services
+* Tile services: XYZ, WMS, WMTS, vector tiles, PMTiles, and ArcGIS REST
+* 3D: OGC 3D Tiles, terrain, extruded buildings, and point clouds via deck.gl
+* Globe view with planetary basemaps for the Moon, Mars, Mercury, Venus, the
+  Galilean moons, Titan, Pluto, and Charon
+* Full symbology control, labels, legends, colorbars, filters, and a time slider
+
+<b>Analyze</b>
+
+* Vector processing: buffer, clip, dissolve, intersect, union, spatial join,
+  centroids, convex hull, simplify, and more, running client-side with Turf.js
+  or GeoPandas compiled to WebAssembly
+* SQL Workspace: query your layers with DuckDB-WASM or an in-browser
+  PostGIS engine
+* Python Console: scripted analysis with Pyodide, no server required
+* Attribute tables, statistics, charts, and geocoding
+
+<b>Share</b>
+
+* Projects save to a portable .geolibre.json file
+* Story maps and shareable links
+* A plugin system for adding your own tools and data sources
+
+<b>Notes on the Android build</b>
+
+Tools that need a local desktop helper process are hidden on Android: the
+Whitebox, Raster, Conversion, and AI Segmentation toolboxes, and the local
+PostgreSQL data source. Everything else runs on the device.
+
+Local-file sources that assume real filesystem paths (MBTiles, local rasters)
+are still being adapted to Android scoped storage.
+
+<b>Network use</b>
+
+GeoLibre works offline for data you already have, but map backgrounds and
+remote data sources are fetched over the network from third-party services you
+choose (basemap tile providers, STAC catalogs, geocoders). The optional AI
+assistant sends your prompt to a third-party model provider only if you
+configure it with your own API key. None of this is required to open and
+analyze your own files.
+
+Source code, documentation, and issue tracker: https://github.com/opengeos/GeoLibre

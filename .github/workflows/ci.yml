@@ -123,6 +123,27 @@ jobs:
             exit 1
           fi
 
+  fdroid:
+    name: Validate F-Droid metadata
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      # No npm install — the checker is dependency-free on purpose so this job
+      # stays a few seconds. It fails when the store listing text breaks a
+      # length limit, or when the version was bumped without adding the matching
+      # changelogs/<versionCode>.txt that F-Droid reads for that release.
+      - name: Check fastlane/metadata/android
+        run: node scripts/check-fdroid-metadata.mjs
+
   checks:
     name: Build and test
     runs-on: ubuntu-22.04

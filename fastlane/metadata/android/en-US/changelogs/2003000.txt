@@ -1,0 +1,8 @@
+* Auto-generated on-map Legend panel with symbology swatches in the Layers panel
+* Time Slider: mosaic (STAC/MosaicJSON) sources, bare-year columns
+* GeoLens catalog browser plugin
+* Pick which GeoPackage layers to load in the Add Vector panel
+* New processing tools: Random extract, Emerging Hot Spot Analysis
+* Location permission requested properly for GPS capture on Android
+* Copy and paste layer styles between layers
+* Many symbology, raster, and translation fixes

@@ -74,6 +74,7 @@ nav:
   - Reference:
       - Architecture: architecture.md
       - Android: android.md
+      - F-Droid: fdroid.md
       - iOS: ios.md
       - Project Format: project-format.md
       - Plugin API: plugin-api.md

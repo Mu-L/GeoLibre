@@ -203,6 +203,15 @@ adb install -r geolibre-x86_64.apk
 > the Play build: Play App Signing re-signs with Google's key, so the two are not
 > upgrade-compatible.
 
+## Publishing to F-Droid
+
+The store metadata (listing text, changelogs, icon, screenshots) lives in
+`fastlane/metadata/android/` and is validated in CI. Note that changelogs are
+keyed by **versionCode**, so bumping the version without adding the matching
+file ships a release with no notes. See [F-Droid](fdroid.md) for the metadata
+layout, the IzzyOnDroid submission path, and why the main f-droid.org repository
+is a longer-term goal.
+
 ## Publishing to Google Play
 
 The build side is covered by the CI workflow above; the rest is Play Console

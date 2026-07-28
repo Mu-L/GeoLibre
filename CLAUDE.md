@@ -16,7 +16,7 @@ npm run tauri:dev      # desktop app (required for filesystem dialogs, local MBT
 npm run build          # production web build → apps/geolibre-desktop/dist/
 npm run tauri:build    # desktop installers → apps/geolibre-desktop/src-tauri/target/release/bundle/
 npm run typecheck      # alias for the full build (tsc -b && vite build) — writes to dist/, not a pure type-check
-npm run ci             # full local gate: build + frontend + worker + backend + rust check
+npm run ci             # full local gate: build + frontend + worker + backend + rust + F-Droid metadata check
 ```
 
 Tests:

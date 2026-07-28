@@ -1,0 +1,1 @@
+Lightweight, cloud-native GIS for viewing and analyzing geospatial data
