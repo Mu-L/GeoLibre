@@ -1528,6 +1528,32 @@
     "viewInGoogleMaps": "Google Haritalar'da görüntüle",
     "viewInGoogleEarth": "Google Earth'te görüntüle"
   },
+  "quickAnalysis": {
+    "menu": "Hızlı analiz",
+    "bufferHere": "Burada {{distance}} tampon bölge",
+    "bufferFeatures": "Tüm nesnelere {{distance}} tampon bölge",
+    "driveTimeHere": "Buradan araçla süre ({{contours}} dk)",
+    "walkTimeHere": "Buradan yürüme süresi ({{contours}} dk)",
+    "centroids": "Merkezler",
+    "convexHull": "Dış bükey kabuk",
+    "boundingBox": "Sınırlayıcı kutu",
+    "openInProcessing": "İşleme'de aç…",
+    "bufferLayerName": "Tampon bölge {{distance}}",
+    "bufferOfLayerName": "{{name}} tampon bölge {{distance}}",
+    "driveTimeLayerName": "Araçla süre",
+    "walkTimeLayerName": "Yürüme süresi",
+    "centroidsLayerName": "{{name}} merkezler",
+    "convexHullLayerName": "{{name}} dış bükey kabuk",
+    "boundingBoxLayerName": "{{name}} sınırlayıcı kutu",
+    "running": "{{tool}} çalıştırılıyor…",
+    "failed": "{{tool}} başarısız oldu",
+    "viewDetails": "Ayrıntıları görüntüle",
+    "unit": {
+      "meters": "m",
+      "kilometers": "km",
+      "miles": "mil"
+    }
+  },
   "knowledgeCard": {
     "title": "Yer bilgisi",
     "loading": "Bu yer aranıyor…",

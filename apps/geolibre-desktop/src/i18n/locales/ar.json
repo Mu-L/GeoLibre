@@ -1683,6 +1683,32 @@
     "viewInGoogleMaps": "عرض في Google Maps",
     "viewInGoogleEarth": "عرض في Google Earth"
   },
+  "quickAnalysis": {
+    "menu": "تحليل سريع",
+    "bufferHere": "نطاق عازل {{distance}} هنا",
+    "bufferFeatures": "نطاق عازل {{distance}} لجميع المعالم",
+    "driveTimeHere": "زمن القيادة من هنا ({{contours}} دقيقة)",
+    "walkTimeHere": "زمن المشي من هنا ({{contours}} دقيقة)",
+    "centroids": "نقاط مركزية",
+    "convexHull": "الغلاف المحدب",
+    "boundingBox": "الصندوق المحيط",
+    "openInProcessing": "فتح في المعالجة…",
+    "bufferLayerName": "نطاق عازل {{distance}}",
+    "bufferOfLayerName": "{{name}} نطاق عازل {{distance}}",
+    "driveTimeLayerName": "زمن القيادة",
+    "walkTimeLayerName": "زمن المشي",
+    "centroidsLayerName": "{{name}} نقاط مركزية",
+    "convexHullLayerName": "{{name}} الغلاف المحدب",
+    "boundingBoxLayerName": "{{name}} الصندوق المحيط",
+    "running": "جارٍ تشغيل {{tool}}…",
+    "failed": "فشل {{tool}}",
+    "viewDetails": "عرض التفاصيل",
+    "unit": {
+      "meters": "م",
+      "kilometers": "كم",
+      "miles": "ميل"
+    }
+  },
   "knowledgeCard": {
     "title": "معلومات المكان",
     "loading": "جارٍ البحث عن هذا المكان…",

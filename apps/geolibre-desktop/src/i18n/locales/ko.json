@@ -1489,6 +1489,32 @@
     "viewInGoogleMaps": "Google 지도에서 보기",
     "viewInGoogleEarth": "Google Earth에서 보기"
   },
+  "quickAnalysis": {
+    "menu": "빠른 분석",
+    "bufferHere": "여기에 {{distance}} 버퍼",
+    "bufferFeatures": "모든 피처를 {{distance}}로 버퍼",
+    "driveTimeHere": "여기에서 차량 이동 시간({{contours}}분)",
+    "walkTimeHere": "여기에서 도보 이동 시간({{contours}}분)",
+    "centroids": "중심점",
+    "convexHull": "볼록 껍질",
+    "boundingBox": "경계 상자",
+    "openInProcessing": "처리에서 열기…",
+    "bufferLayerName": "버퍼 {{distance}}",
+    "bufferOfLayerName": "{{name}} 버퍼 {{distance}}",
+    "driveTimeLayerName": "차량 이동 시간",
+    "walkTimeLayerName": "도보 이동 시간",
+    "centroidsLayerName": "{{name}} 중심점",
+    "convexHullLayerName": "{{name}} 볼록 껍질",
+    "boundingBoxLayerName": "{{name}} 경계 상자",
+    "running": "{{tool}} 실행 중…",
+    "failed": "{{tool}} 실패",
+    "viewDetails": "세부 정보 보기",
+    "unit": {
+      "meters": "m",
+      "kilometers": "km",
+      "miles": "마일"
+    }
+  },
   "knowledgeCard": {
     "title": "장소 정보",
     "loading": "이 장소를 검색하는 중…",

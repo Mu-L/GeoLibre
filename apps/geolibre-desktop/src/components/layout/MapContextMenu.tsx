@@ -1,3 +1,4 @@
+import { useAppStore } from "@geolibre/core";
 import type { MapController } from "@geolibre/map";
 import {
   DropdownMenu,
@@ -5,14 +6,36 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@geolibre/ui";
 import type maplibregl from "maplibre-gl";
-import { BookOpen, Braces, Crosshair, Earth, MapIcon, MapPin, ZoomIn } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  BookOpen,
+  Braces,
+  Circle,
+  Crosshair,
+  Earth,
+  MapIcon,
+  MapPin,
+  Route,
+  Sparkles,
+  ZoomIn,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { googleEarthUrl, googleMapsUrl } from "../../lib/external-map-links";
 import { openExternalLink } from "../../lib/open-external";
+import {
+  bufferPresetsFor,
+  clickedPointLayer,
+  QUICK_TRAVEL_CONTOURS,
+  QUICK_TRAVEL_CONTOURS_LABEL,
+  runQuickAnalysis,
+  type QuickBufferPreset,
+} from "../../lib/quick-analysis";
 
 interface ContextMenuState {
   /** Monotonic id so each right-click remounts the menu at the new anchor. */
@@ -81,7 +104,7 @@ export function MapContextMenu({
   /** Open a Wikipedia knowledge card for the clicked coordinate. */
   onExplorePlace?: (lat: number, lng: number) => void;
 }) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   // `menu` keeps the last anchor/coordinate even while closing, so the exit
   // animation plays from the right spot; `open` drives visibility separately.
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
@@ -164,6 +187,62 @@ export function MapContextMenu({
     void openExternalLink(googleEarthUrl(menu.lat, menu.lng, zoom));
   }, [menu, mapControllerRef]);
 
+  // Quick analysis (#1523): run an existing Processing tool against the clicked
+  // point with defaults filled in. The buffer ladder follows the scale bar's
+  // unit system so the menu speaks in the units the map is already labelled in.
+  const scaleUnit = useAppStore((s) => s.preferences.map.scaleUnit);
+  const bufferPresets = useMemo(() => bufferPresetsFor(scaleUnit), [scaleUnit]);
+  const setVectorToolOpen = useAppStore((s) => s.setVectorToolOpen);
+
+  const formatDistance = useCallback(
+    (preset: QuickBufferPreset) =>
+      `${new Intl.NumberFormat(i18n.language).format(preset.distance)} ${t(
+        `quickAnalysis.unit.${preset.units}`,
+      )}`,
+    [i18n.language, t],
+  );
+
+  const bufferHere = useCallback(
+    (preset: QuickBufferPreset) => {
+      if (!menu) return;
+      const point = clickedPointLayer(menu.lng, menu.lat);
+      void runQuickAnalysis({
+        toolId: "buffer",
+        parameters: { layer: point.id, distance: preset.distance, units: preset.units },
+        extraLayers: [point],
+        resultName: t("quickAnalysis.bufferLayerName", { distance: formatDistance(preset) }),
+        mapControllerRef,
+      });
+    },
+    [menu, t, formatDistance, mapControllerRef],
+  );
+
+  const travelTimeHere = useCallback(
+    (mode: "auto" | "pedestrian") => {
+      if (!menu) return;
+      const point = clickedPointLayer(menu.lng, menu.lat);
+      void runQuickAnalysis({
+        toolId: "isochrone",
+        parameters: {
+          layer: point.id,
+          mode,
+          metric: "time",
+          contours: QUICK_TRAVEL_CONTOURS,
+          // Left empty so the tool resolves the configured routing server
+          // rather than baking one in here.
+          endpoint: "",
+        },
+        extraLayers: [point],
+        resultName:
+          mode === "auto"
+            ? t("quickAnalysis.driveTimeLayerName")
+            : t("quickAnalysis.walkTimeLayerName"),
+        mapControllerRef,
+      });
+    },
+    [menu, t, mapControllerRef],
+  );
+
   return (
     // Keyed by the right-click id so each new right-click remounts the menu with
     // a fresh anchor at the cursor. The key is tied to `menu` (not `open`), so a
@@ -213,6 +292,41 @@ export function MapContextMenu({
           <ZoomIn className="h-4 w-4 shrink-0 text-muted-foreground" />
           {t("mapContextMenu.zoomInHere")}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className="gap-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+            {t("quickAnalysis.menu")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-60">
+            {bufferPresets.map((preset) => (
+              <DropdownMenuItem
+                key={`${preset.distance}-${preset.units}`}
+                onSelect={() => bufferHere(preset)}
+                className="gap-2"
+              >
+                <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                {t("quickAnalysis.bufferHere", { distance: formatDistance(preset) })}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => travelTimeHere("auto")} className="gap-2">
+              <Route className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t("quickAnalysis.driveTimeHere", { contours: QUICK_TRAVEL_CONTOURS_LABEL })}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => travelTimeHere("pedestrian")} className="gap-2">
+              <Route className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t("quickAnalysis.walkTimeHere", { contours: QUICK_TRAVEL_CONTOURS_LABEL })}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {/* Escape hatch when the presets aren't what was wanted: the full
+                dialog, preselected on the same tool. */}
+            <DropdownMenuItem onSelect={() => setVectorToolOpen("buffer")} className="gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t("quickAnalysis.openInProcessing")}
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={viewInGoogleMaps} className="gap-2">
           <MapIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
