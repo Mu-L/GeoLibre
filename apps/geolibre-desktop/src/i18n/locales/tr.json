@@ -4047,6 +4047,13 @@
       "invertedFill": "Ters dolgu",
       "invertedFillHint": "Objelerin dışını doldur"
     },
+    "suggestions": {
+      "title": "Stil önerileri",
+      "dismiss": "Önerileri kapat",
+      "categorize": "{{field}} alanına göre kategorilendir",
+      "graduate": "{{field}} alanına göre derecelendir",
+      "heatmap": "Isı haritası"
+    },
     "selectLayerHint": "Stilini düzenlemek için bir katman seçin.",
     "layerOrderDefault": "Katman sırası (varsayılan)",
     "increaseValue": "{{label}} değerini artır",

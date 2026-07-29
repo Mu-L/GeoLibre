@@ -4047,6 +4047,13 @@
       "invertedFill": "Preenchimento invertido",
       "invertedFillHint": "Preencher fora das feições"
     },
+    "suggestions": {
+      "title": "Sugestões de estilo",
+      "dismiss": "Dispensar sugestões",
+      "categorize": "Categorizar por {{field}}",
+      "graduate": "Graduar por {{field}}",
+      "heatmap": "Mapa de calor"
+    },
     "selectLayerHint": "Selecione uma camada para editar seu estilo.",
     "layerOrderDefault": "Ordem das camadas (padrão)",
     "increaseValue": "Aumentar {{label}}",

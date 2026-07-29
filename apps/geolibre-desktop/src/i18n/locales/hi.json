@@ -4047,6 +4047,13 @@
       "invertedFill": "उलटा भराव",
       "invertedFillHint": "आकृतियों के बाहर भरें"
     },
+    "suggestions": {
+      "title": "शैली सुझाव",
+      "dismiss": "सुझाव बंद करें",
+      "categorize": "{{field}} के अनुसार वर्गीकृत करें",
+      "graduate": "{{field}} के अनुसार श्रेणीबद्ध करें",
+      "heatmap": "हीटमैप"
+    },
     "selectLayerHint": "इसकी शैली संपादित करने के लिए एक लेयर चुनें।",
     "layerOrderDefault": "लेयर क्रम (डिफ़ॉल्ट)",
     "increaseValue": "{{label}} बढ़ाएं",

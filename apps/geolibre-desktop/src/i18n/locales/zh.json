@@ -3980,6 +3980,13 @@
       "invertedFill": "反转填充",
       "invertedFillHint": "填充要素外部区域"
     },
+    "suggestions": {
+      "title": "样式建议",
+      "dismiss": "关闭建议",
+      "categorize": "按 {{field}} 分类",
+      "graduate": "按 {{field}} 分级",
+      "heatmap": "热力图"
+    },
     "selectLayerHint": "选择要编辑样式的图层。",
     "layerOrderDefault": "图层顺序（默认）",
     "increaseValue": "增加{{label}}",

@@ -3980,6 +3980,13 @@
       "invertedFill": "反転塗りつぶし",
       "invertedFillHint": "地物の外側を塗りつぶす"
     },
+    "suggestions": {
+      "title": "スタイルの提案",
+      "dismiss": "提案を閉じる",
+      "categorize": "{{field}} で分類",
+      "graduate": "{{field}} で段階分け",
+      "heatmap": "ヒートマップ"
+    },
     "selectLayerHint": "スタイルを編集するレイヤーを選択してください。",
     "layerOrderDefault": "レイヤー順序 (既定)",
     "increaseValue": "{{label}}を増やす",

@@ -4047,6 +4047,13 @@
       "invertedFill": "Omgekeerde vulling",
       "invertedFillHint": "Buiten objecten vullen"
     },
+    "suggestions": {
+      "title": "Stijlsuggesties",
+      "dismiss": "Suggesties verbergen",
+      "categorize": "Categoriseren op {{field}}",
+      "graduate": "Gradueren op {{field}}",
+      "heatmap": "Heatmap"
+    },
     "selectLayerHint": "Selecteer een laag om de stijl ervan te bewerken.",
     "layerOrderDefault": "Laagvolgorde (standaard)",
     "increaseValue": "{{label}} verhogen",

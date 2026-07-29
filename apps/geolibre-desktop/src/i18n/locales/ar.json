@@ -4314,6 +4314,13 @@
       "invertedFill": "تعبئة معكوسة",
       "invertedFillHint": "تعبئة خارج المعالم"
     },
+    "suggestions": {
+      "title": "اقتراحات التنسيق",
+      "dismiss": "إخفاء الاقتراحات",
+      "categorize": "تصنيف حسب {{field}}",
+      "graduate": "تدريج حسب {{field}}",
+      "heatmap": "خريطة حرارية"
+    },
     "selectLayerHint": "حدد طبقة لتحرير نمطها.",
     "layerOrderDefault": "ترتيب الطبقات (افتراضي)",
     "increaseValue": "زيادة {{label}}",

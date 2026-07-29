@@ -4113,6 +4113,13 @@
       "invertedFill": "Inverted fill",
       "invertedFillHint": "Fill outside features"
     },
+    "suggestions": {
+      "title": "Style suggestions",
+      "dismiss": "Dismiss suggestions",
+      "categorize": "Categorize by {{field}}",
+      "graduate": "Graduate by {{field}}",
+      "heatmap": "Heatmap"
+    },
     "selectLayerHint": "Select a layer to edit its style.",
     "layerOrderDefault": "Layer order (default)",
     "increaseValue": "Increase {{label}}",

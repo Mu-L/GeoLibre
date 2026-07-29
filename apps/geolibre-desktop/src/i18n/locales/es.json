@@ -4047,6 +4047,13 @@
       "invertedFill": "Relleno invertido",
       "invertedFillHint": "Rellenar fuera de los elementos"
     },
+    "suggestions": {
+      "title": "Sugerencias de estilo",
+      "dismiss": "Descartar sugerencias",
+      "categorize": "Categorizar por {{field}}",
+      "graduate": "Graduar por {{field}}",
+      "heatmap": "Mapa de calor"
+    },
     "selectLayerHint": "Seleccione una capa para editar su estilo.",
     "layerOrderDefault": "Orden de capas (predeterminado)",
     "increaseValue": "Aumentar {{label}}",

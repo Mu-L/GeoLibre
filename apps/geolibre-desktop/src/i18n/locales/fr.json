@@ -4047,6 +4047,13 @@
       "invertedFill": "Remplissage inversé",
       "invertedFillHint": "Remplir hors des entités"
     },
+    "suggestions": {
+      "title": "Suggestions de style",
+      "dismiss": "Masquer les suggestions",
+      "categorize": "Catégoriser par {{field}}",
+      "graduate": "Graduer par {{field}}",
+      "heatmap": "Carte de chaleur"
+    },
     "selectLayerHint": "Sélectionnez une couche pour modifier son style.",
     "layerOrderDefault": "Ordre des couches (par défaut)",
     "increaseValue": "Augmenter {{label}}",

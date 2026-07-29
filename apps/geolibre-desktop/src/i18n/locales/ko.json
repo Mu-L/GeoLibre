@@ -3980,6 +3980,13 @@
       "invertedFill": "반전 채우기",
       "invertedFillHint": "피처 바깥쪽 채우기"
     },
+    "suggestions": {
+      "title": "스타일 제안",
+      "dismiss": "제안 닫기",
+      "categorize": "{{field}} 기준으로 분류",
+      "graduate": "{{field}} 기준으로 등급 구분",
+      "heatmap": "히트맵"
+    },
     "selectLayerHint": "스타일을 편집할 레이어를 선택하세요.",
     "layerOrderDefault": "레이어 순서(기본값)",
     "increaseValue": "{{label}} 늘리기",

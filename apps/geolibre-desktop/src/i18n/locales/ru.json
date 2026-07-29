@@ -4181,6 +4181,13 @@
       "invertedFill": "Инвертированная заливка",
       "invertedFillHint": "Заливка вне объектов"
     },
+    "suggestions": {
+      "title": "Предложения по стилю",
+      "dismiss": "Скрыть предложения",
+      "categorize": "Категоризовать по «{{field}}»",
+      "graduate": "Градуировать по «{{field}}»",
+      "heatmap": "Тепловая карта"
+    },
     "selectLayerHint": "Выберите слой, чтобы изменить его стиль.",
     "layerOrderDefault": "Порядок слоёв (по умолчанию)",
     "increaseValue": "Увеличить {{label}}",

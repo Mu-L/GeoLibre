@@ -67,8 +67,10 @@ import {
   PanelRightOpen,
   Plus,
   SlidersHorizontal,
+  Sparkles,
   SquareFunction,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   type PointerEvent as ReactPointerEvent,
@@ -86,12 +88,15 @@ import {
   standardExpressionVariables,
 } from "../../lib/expression-inputs";
 import {
+  chooseGraduatedProperty,
   clampClassCount,
   createCategorizedStops,
   createGraduatedStops,
   getPropertyValues,
-  numericBounds,
+  isCategoricalProperty,
+  isNumericProperty,
 } from "../../lib/vector-style-classification";
+import { buildStyleSuggestions, type StyleSuggestion } from "../../lib/style-suggestions";
 
 /**
  * Data-defined label overrides (GH #1320): one row per {@link LabelStyle}
@@ -594,49 +599,6 @@ function chooseDefaultStyleProperty(
   return currentProperty;
 }
 
-function isNumericProperty(
-  layer: Parameters<typeof getPropertyValues>[0],
-  property: string,
-): boolean {
-  const values = getPropertyValues(layer, property);
-  const numericValues = values.map((value) => Number(value)).filter(Number.isFinite);
-  return numericValues.length > 1;
-}
-
-function chooseGraduatedProperty(
-  layer: Parameters<typeof getPropertyValues>[0],
-  properties: string[],
-): string {
-  let bestProperty = "";
-  let bestScore = -1;
-
-  for (const property of properties) {
-    const values = getPropertyValues(layer, property)
-      .map((value) => Number(value))
-      .filter(Number.isFinite);
-    if (values.length < 2) continue;
-
-    const { min, max } = numericBounds(values);
-    const range = max - min;
-    const score = new Set(values).size * Math.log10(Math.max(1, range) + 1);
-    if (score > bestScore) {
-      bestProperty = property;
-      bestScore = score;
-    }
-  }
-
-  return bestProperty;
-}
-
-function isCategoricalProperty(
-  layer: Parameters<typeof getPropertyValues>[0],
-  property: string,
-): boolean {
-  const values = getPropertyValues(layer, property).map((value) => String(value));
-  const uniqueCount = new Set(values).size;
-  return uniqueCount > 1 && uniqueCount <= 12;
-}
-
 function normalizeVectorStyleStops(
   mode: VectorStyleMode,
   stops: VectorStyleStop[],
@@ -1048,6 +1010,8 @@ export function StylePanel({
     DEFAULT_LAYER_STYLE.extrusionAdvancedStyleEnabled,
   );
   const [vectorStyleError, setVectorStyleError] = useState<string | null>(null);
+  // Layers whose style suggestions the user waved off this session (#1519).
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(() => new Set());
   const [extrusionError, setExtrusionError] = useState<string | null>(null);
   const [loadedVectorPropertyValues, setLoadedVectorPropertyValues] = useState<{
     layerId: string;
@@ -2074,8 +2038,99 @@ export function StylePanel({
   const markerEnabled = styleValue(style, "markerEnabled");
   const markerShape = styleValue(style, "markerShape");
 
+  // --- Style suggestions (#1519) -------------------------------------------
+  // Offered only while the layer still carries its as-added symbology: once
+  // someone has chosen a renderer, second-guessing them is noise. Dismissal is
+  // per-layer and session-scoped — it is a nudge, not project state.
+  const suggestionsApply =
+    styleValue(style, "vectorStyleMode") === "single" &&
+    styleValue(style, "pointRenderer") === "single" &&
+    !dismissedSuggestions.has(layer.id);
+  const styleSuggestions = suggestionsApply
+    ? buildStyleSuggestions(layer, vectorStylePropertyOptions, { supportsPointRenderer })
+    : [];
+
+  const applyStyleSuggestion = (suggestion: StyleSuggestion) => {
+    if (suggestion.kind === "heatmap") {
+      setLayerStyle(layer.id, { pointRenderer: "heatmap" });
+      return;
+    }
+    const mode = suggestion.kind;
+    const property = suggestion.property ?? "";
+    const classCount = normalizeVectorStyleClassCount(
+      mode,
+      DEFAULT_LAYER_STYLE.vectorStyleClassCount,
+    );
+    const classificationScheme = defaultClassificationScheme(mode);
+    const colorRamp = draftVectorStyleColorRamp;
+    const stops = normalizeVectorStyleStops(
+      mode,
+      createDefaultStops(layer, mode, property, classCount, colorRamp, classificationScheme),
+    );
+    // A suggestion that classifies to nothing (all-null column, one distinct
+    // value) would apply an empty renderer and blank the layer — the same
+    // guard applyVectorStyleSettings uses, just silent here.
+    if (mode === "graduated" ? stops.length < 2 : stops.length === 0) return;
+
+    setDraftVectorStyleMode(mode);
+    setDraftVectorStyleProperty(property);
+    setDraftVectorStyleClassCount(classCount);
+    setDraftVectorStyleClassificationScheme(classificationScheme);
+    setDraftVectorStyleStops(stops);
+    setVectorStyleError(null);
+    setLayerStyle(layer.id, {
+      vectorStyleMode: mode,
+      vectorStyleProperty: property,
+      vectorStyleClassCount: classCount,
+      vectorStyleColorRamp: colorRamp,
+      vectorStyleClassificationScheme: classificationScheme,
+      vectorStyleStops: stops,
+    });
+  };
+
+  const suggestionLabel = (suggestion: StyleSuggestion): string =>
+    suggestion.kind === "heatmap"
+      ? t("style.suggestions.heatmap")
+      : t(
+          suggestion.kind === "categorized"
+            ? "style.suggestions.categorize"
+            : "style.suggestions.graduate",
+          { field: suggestion.property },
+        );
+
   const vectorSymbologyControls = (
     <div className="space-y-3">
+      {styleSuggestions.length > 0 && (
+        <div className="space-y-2 rounded-md border border-dashed bg-muted/40 p-2">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span className="text-xs font-medium">{t("style.suggestions.title")}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ms-auto h-5 w-5"
+              aria-label={t("style.suggestions.dismiss")}
+              title={t("style.suggestions.dismiss")}
+              onClick={() => setDismissedSuggestions((current) => new Set(current).add(layer.id))}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {styleSuggestions.map((suggestion) => (
+              <Button
+                key={`${suggestion.kind}-${suggestion.property ?? ""}`}
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => applyStyleSuggestion(suggestion)}
+              >
+                {suggestionLabel(suggestion)}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="space-y-2">
         <Label htmlFor="vectorStyleMode">{t("style.symbology.styleType")}</Label>
         <Select

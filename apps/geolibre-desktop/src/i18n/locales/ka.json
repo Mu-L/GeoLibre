@@ -4047,6 +4047,13 @@
       "invertedFill": "ინვერსიული შევსება",
       "invertedFillHint": "ობიექტების გარეთ შევსება"
     },
+    "suggestions": {
+      "title": "სტილის შემოთავაზებები",
+      "dismiss": "შემოთავაზებების დახურვა",
+      "categorize": "კატეგორიზაცია {{field}}-ის მიხედვით",
+      "graduate": "გრადაცია {{field}}-ის მიხედვით",
+      "heatmap": "სითბოს რუკა"
+    },
     "selectLayerHint": "აირჩიეთ შრე მისი სტილის რედაქტირებისთვის.",
     "layerOrderDefault": "შრეების რიგი (ნაგულისხმევი)",
     "increaseValue": "{{label}}-ის გაზრდა",

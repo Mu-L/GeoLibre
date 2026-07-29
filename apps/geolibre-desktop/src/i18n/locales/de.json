@@ -4047,6 +4047,13 @@
       "invertedFill": "Invertierte Füllung",
       "invertedFillHint": "Außenbereich füllen"
     },
+    "suggestions": {
+      "title": "Stilvorschläge",
+      "dismiss": "Vorschläge ausblenden",
+      "categorize": "Nach {{field}} kategorisieren",
+      "graduate": "Nach {{field}} abstufen",
+      "heatmap": "Heatmap"
+    },
     "selectLayerHint": "Wählen Sie eine Ebene aus, um ihren Stil zu bearbeiten.",
     "layerOrderDefault": "Ebenenreihenfolge (Standard)",
     "increaseValue": "{{label}} erhöhen",

@@ -3980,6 +3980,13 @@
       "invertedFill": "Isian terbalik",
       "invertedFillHint": "Isi di luar fitur"
     },
+    "suggestions": {
+      "title": "Saran gaya",
+      "dismiss": "Tutup saran",
+      "categorize": "Kategorikan menurut {{field}}",
+      "graduate": "Gradasikan menurut {{field}}",
+      "heatmap": "Peta panas"
+    },
     "selectLayerHint": "Pilih layer untuk mengedit gayanya.",
     "layerOrderDefault": "Urutan layer (default)",
     "increaseValue": "Naikkan {{label}}",
