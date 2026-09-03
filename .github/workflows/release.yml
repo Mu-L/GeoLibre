@@ -161,7 +161,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          TAG: ${{ github.event.release.tag_name }}
+          # On a release this is the tag. A trial run has none, and the script
+          # requires one: it derives the zsync glob by rewriting `_<version>_`
+          # in the bundle's file name and bails if the tag's version is not in
+          # there. Fall back to the version tauri-action actually stamped, which
+          # is what test-build.yml already feeds this same step.
+          TAG: ${{ github.event.release.tag_name || format('v{0}', steps.tauri.outputs.appVersion) }}
           EVENT_NAME: ${{ github.event_name }}
           ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
         run: |
