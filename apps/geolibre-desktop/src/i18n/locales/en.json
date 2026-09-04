@@ -1869,6 +1869,9 @@
     "only2d": "2D only",
     "cesiumTokenHint": "Add a Cesium Ion token in Settings for terrain and Ion imagery"
   },
+  "renderer": {
+    "layerUnsupported": "Not rendered by the 3D globe"
+  },
   "mapContextMenu": {
     "copyCoordinatesHint": "Copy coordinates to clipboard",
     "quickActions": "Quick actions",
@@ -2720,6 +2723,10 @@
       "splitViewGrid2x3": "2 × 3 grid",
       "splitViewGrid3x3": "3 × 3 grid",
       "splitViewSync": "Sync views",
+      "renderingEngine": "Rendering engine",
+      "rendererMapLibre": "MapLibre 2D",
+      "rendererCesium": "Cesium 3D",
+      "mapLibreOnly": "Unavailable on the 3D globe. Switch View \u2192 Rendering engine back to MapLibre 2D.",
       "viewInGoogleMaps": "View in Google Maps",
       "viewInGoogleEarth": "View in Google Earth",
       "zoomIn": "Zoom In",
