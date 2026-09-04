@@ -123,7 +123,7 @@ import { pluginDisplayName } from "../../lib/plugin-display-name";
 import { masHidesDataSource } from "../../lib/mas-build";
 import { IS_STORE_BUILD } from "../../lib/updates";
 import { AddDataDialog, type AddDataKind } from "./AddDataDialog";
-import { serviceUrlParameter } from "../../lib/data-url";
+import { serviceUrlParameter, type ServiceUrlParameter } from "../../lib/data-url";
 import {
   OPEN_ADD_DATA_EVENT,
   type OpenAddDataDetail,
@@ -1174,7 +1174,11 @@ export function TopToolbar({
       current.terrain === terrainEnabled ? current : { ...current, terrain: terrainEnabled },
     );
   }, [mapControllerRef, mapReadyGeneration, projectGeneration, terrainEnabled]);
-  const [initialService, setInitialService] = useState(() =>
+  // `keyword` has no deep-link parameter — only the Browser panel's saved CSW
+  // entries carry one — so it widens the parsed shape rather than joining it.
+  const [initialService, setInitialService] = useState<
+    (ServiceUrlParameter & { keyword?: string | null }) | null
+  >(() =>
     viewer || typeof window === "undefined" ? null : serviceUrlParameter(window.location.search),
   );
   const [addDataKind, setAddDataKind] = useState<AddDataKind | null>(() => {
@@ -1218,6 +1222,19 @@ export function TopToolbar({
       // Reject kinds the Mac App Store build hides so a stray event cannot
       // open a dialog whose backing service is compiled out.
       if (detail?.kind && !masHidesDataSource(detail.kind)) {
+        setInitialService(
+          // An empty string is still a prefill (a saved CSW entry can carry a
+          // keyword and a blank endpoint); only a missing url means "no prefill".
+          detail.url !== undefined
+            ? {
+                kind: detail.kind,
+                url: detail.url,
+                layer: detail.layer ?? null,
+                styleUrl: null,
+                keyword: detail.keyword ?? null,
+              }
+            : null,
+        );
         setAddDataPostgres(detail.postgres);
         setAddDataTargetGroupId(detail.groupId ?? null);
         addDataInitialLayerIdsRef.current = new Set(
@@ -2298,6 +2315,10 @@ export function TopToolbar({
         initialStyleUrl={
           addDataKind === initialService?.kind ? (initialService.styleUrl ?? undefined) : undefined
         }
+        initialKeyword={
+          addDataKind === initialService?.kind ? (initialService.keyword ?? undefined) : undefined
+        }
+        targetGroupId={addDataTargetGroupId}
         onOpenChange={(open: boolean) => {
           if (!open) {
             if (addDataTargetGroupId) {
