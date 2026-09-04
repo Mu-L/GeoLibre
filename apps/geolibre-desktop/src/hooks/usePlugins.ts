@@ -76,6 +76,7 @@ import {
   maplibreTimeSliderPlugin,
   setTimelapseVideoSaver,
   maplibreUsgsLidarPlugin,
+  maplibreUsgsNldiPlugin,
   PluginManager,
   registerRightPanel,
   unregisterRightPanel,
@@ -200,6 +201,7 @@ manager.registerAll([
   maplibreNasaEarthdataPlugin,
   maplibreEnviroAtlasPlugin,
   maplibreNationalMapPlugin,
+  maplibreUsgsNldiPlugin,
   maplibreVantorPlugin,
   maplibrePlanetOpenDataPlugin,
   maplibreEarthdataGisPlugin,
@@ -1051,6 +1053,8 @@ export function createAppAPI(mapControllerRef?: RefObject<MapController | null>)
     queryOvertureFeatures,
     addLayerGroup: (name?: string, layerIds?: string[]) =>
       useAppStore.getState().addLayerGroup(name, layerIds),
+    moveLayersToGroup: (layerIds: string[], groupId: string | null) =>
+      useAppStore.getState().moveLayersToGroup(layerIds, groupId),
     removeLayerGroup: (id: string) => useAppStore.getState().removeLayerGroup(id),
     fitBounds: (bounds: [number, number, number, number]) =>
       mapControllerRef?.current?.fitBounds(bounds),
