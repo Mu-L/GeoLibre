@@ -266,7 +266,9 @@ export {
   type RasterSymbology,
   clampRasterClassCount,
   computeRasterBreaks,
+  customColorsForRasterClassEdit,
   defaultRasterSymbology,
+  normalizeRasterClassOpacities,
   savedRasterSymbology,
 } from "./plugins/raster-symbology";
 export { RASTER_SOURCE_KIND, getRasterBandStats } from "./plugins/raster-symbology-texture";

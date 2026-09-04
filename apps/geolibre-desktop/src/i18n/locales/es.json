@@ -6644,6 +6644,7 @@
       "categories": "Categorías",
       "classColor": "Color de la clase {{index}}",
       "classColorPick": "Elegir el color de la clase {{index}} de la pantalla",
+      "classOpacity": "Opacidad de la clase {{index}}",
       "classValue": "Valor de la clase {{index}}",
       "colorExpression": "Expresión de color",
       "applyStyleType": "Aplicar tipo de estilo",
