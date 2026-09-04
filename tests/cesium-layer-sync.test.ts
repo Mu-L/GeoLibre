@@ -211,6 +211,102 @@ describe("CesiumLayerSync", () => {
     assert.equal(f.calls.dataSourcesAdded.length, 1);
   });
 
+  it("renders every non-tile layer carrying GeoJSON through the GeoJSON path", async () => {
+    const sync = newSync(f);
+    const types = ["flatgeobuf", "geoparquet", "duckdb-query"] as const;
+    const layers = types.map((type, index) =>
+      mkLayer({
+        id: `geojson-backed-${index}`,
+        type,
+        geojson: { type: "FeatureCollection", features: [{}] } as never,
+      }),
+    );
+
+    sync.sync(layers);
+    await f.flush();
+
+    assert.equal(f.calls.geojsonLoads.length, types.length);
+    assert.equal(f.calls.dataSourcesAdded.length, types.length);
+    for (const layer of layers) assert.equal(isCesiumSupportedLayerType(layer), true, layer.type);
+  });
+
+  it("renders a layer kind the module never names, keyed on the data alone", async () => {
+    // The globe decides on `layer.geojson`, not on a list of blessed types, so
+    // a producer that starts attaching a FeatureCollection to a kind this
+    // module has never heard of renders with no change here. `"zarr"` and
+    // `"lidar"` are only stand-ins for that: nothing populates their geojson
+    // today, and this asserts the mechanism rather than either kind's behavior.
+    const sync = newSync(f);
+    const types = ["zarr", "lidar"] as const;
+    const layers = types.map((type, index) =>
+      mkLayer({
+        id: `unlisted-${index}`,
+        type,
+        geojson: { type: "FeatureCollection", features: [{}] } as never,
+      }),
+    );
+
+    sync.sync(layers);
+    await f.flush();
+
+    assert.equal(f.calls.geojsonLoads.length, types.length);
+    for (const layer of layers) assert.equal(isCesiumSupportedLayerType(layer), true, layer.type);
+  });
+
+  it("keeps an imagery layer on the imagery path despite a stray FeatureCollection", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      type: "xyz",
+      geojson: { type: "FeatureCollection", features: [{}] } as never,
+      source: { tiles: ["https://example.com/{z}/{x}/{y}.png"] },
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+
+    assert.equal(f.calls.geojsonLoads.length, 0);
+    assert.equal(f.calls.imageryAdded.length, 1);
+  });
+
+  it("keeps tile-backed vector layers 2D-only even if they carry incidental GeoJSON", async () => {
+    const sync = newSync(f);
+    const layers = ["vector-tiles", "pmtiles", "mbtiles", "arcgis"].map((type, index) =>
+      mkLayer({
+        id: `vector-tiles-${index}`,
+        type: type as "vector-tiles" | "pmtiles" | "mbtiles" | "arcgis",
+        geojson: { type: "FeatureCollection", features: [{}] } as never,
+      }),
+    );
+
+    sync.sync(layers);
+    await f.flush();
+
+    assert.equal(f.calls.geojsonLoads.length, 0);
+    for (const layer of layers) assert.equal(isCesiumSupportedLayerType(layer), false, layer.type);
+  });
+
+  it("keeps specialized non-GeoJSON layer kinds out of the plain GeoJSON path", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      type: "deckgl-viz",
+      geojson: { type: "FeatureCollection", features: [{}] } as never,
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+
+    assert.equal(f.calls.geojsonLoads.length, 0);
+    assert.equal(isCesiumSupportedLayerType(layer), false);
+  });
+
+  it("keeps ArcGIS vector tiles without a FeatureCollection marked 2D-only", () => {
+    const layer = mkLayer({
+      type: "arcgis",
+      source: { url: "https://example.com/VectorTileServer" },
+    });
+    assert.equal(isCesiumSupportedLayerType(layer), false);
+  });
+
   it("skips a geojson layer with no features", async () => {
     const sync = newSync(f);
     sync.sync([
@@ -218,6 +314,33 @@ describe("CesiumLayerSync", () => {
     ]);
     await f.flush();
     assert.equal(f.calls.geojsonLoads.length, 0);
+  });
+
+  it("classifies empty GeoJSON-backed kinds as supported but not ready to render", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      type: "flatgeobuf",
+      geojson: { type: "FeatureCollection", features: [] } as never,
+    });
+
+    assert.equal(isCesiumSupportedLayerType(layer), true);
+    sync.sync([layer]);
+    await f.flush();
+    assert.equal(f.calls.geojsonLoads.length, 0);
+  });
+
+  it("does not treat an empty GeoJSON-backed layer with incidental tiles as imagery", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      type: "flatgeobuf",
+      geojson: { type: "FeatureCollection", features: [] } as never,
+      source: { tiles: ["https://example.com/{z}/{x}/{y}.png"] },
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+    assert.equal(f.calls.geojsonLoads.length, 0);
+    assert.equal(f.calls.imageryAdded.length, 0);
   });
 
   it("restyles a geojson layer's fill opacity in place without reloading", async () => {
