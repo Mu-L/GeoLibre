@@ -19,6 +19,7 @@ import {
   setZarrLayerSelector,
   setZarrLocalStoreProvider,
   maplibreAnnotationsPlugin,
+  maplibreDimensionsPlugin,
   maplibreBasemapControlPlugin,
   maplibreComponentsPlugin,
   maplibreDeckGlVizPlugin,
@@ -190,6 +191,7 @@ manager.registerAll([
   maplibreLayerControlPlugin,
   maplibreGeoEditorPlugin,
   maplibreAnnotationsPlugin,
+  maplibreDimensionsPlugin,
   maplibreBasemapControlPlugin,
   // The web service plugins (WEB_SERVICE_PLUGIN_IDS) are grouped into the
   // "Web Services" submenu, rendered where the first of them appears in this
@@ -276,7 +278,12 @@ setEarthdataCogSaver(async (geoTiffBytes, defaultName) => {
   const saved = await saveBinaryFileWithFallback(cogBytes, {
     defaultName,
     filters: [{ name: "Cloud Optimized GeoTIFF", extensions: ["tif"] }],
-    browserTypes: [{ description: "Cloud Optimized GeoTIFF", accept: { "image/tiff": [".tif"] } }],
+    browserTypes: [
+      {
+        description: "Cloud Optimized GeoTIFF",
+        accept: { "image/tiff": [".tif"] },
+      },
+    ],
     mimeType: "image/tiff",
   });
   return saved !== null;

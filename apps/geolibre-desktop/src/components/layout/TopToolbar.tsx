@@ -25,6 +25,7 @@ import {
   openThreeDTilesLayerPanel,
   openVectorLayerPanel,
   setAnnotationLabels,
+  setDimensionLabels,
   setBasemapControlLabels,
   setGeoEditorLabels,
   setGraticuleLabels,
@@ -281,6 +282,29 @@ export function TopToolbar({
       saveElement: t("annotations.saveElement"),
       atPoint: t("annotations.atPoint"),
       pinnedToExtent: t("annotations.pinnedToExtent"),
+    });
+    setDimensionLabels({
+      toolbar: t("dimensions.toolbar"),
+      collapse: t("sharedRail.collapse", { title: t("dimensions.toolbar") }),
+      expand: t("sharedRail.expand", { title: t("dimensions.toolbar") }),
+      layerName: t("dimensions.layerName"),
+      tools: {
+        linear: t("dimensions.tools.linear"),
+        angular: t("dimensions.tools.angular"),
+      },
+      unit: t("dimensions.unit"),
+      snap: t("dimensions.snap"),
+      color: t("dimensions.color"),
+      width: t("dimensions.width"),
+      widthOptions: {
+        thin: t("dimensions.widthOptions.thin"),
+        medium: t("dimensions.widthOptions.medium"),
+        thick: t("dimensions.widthOptions.thick"),
+      },
+      deleteLast: t("dimensions.deleteLast"),
+      clearAll: t("dimensions.clearAll"),
+      newLayer: t("dimensions.newLayer"),
+      confirmClearAll: (count) => t("dimensions.confirmClearAll", { count }),
     });
     setMapillaryLabels({
       title: t("mapillary.title"),
