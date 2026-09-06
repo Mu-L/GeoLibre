@@ -12,6 +12,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { applyBasemapAppearance, applyBasemapImagery } from "./cesium-basemap";
 import { isSameView } from "./cesium-camera";
 import { CesiumEngine } from "./cesium-engine";
+import { CesiumControlHost, setPrimaryCesiumControlHost } from "./cesium-control-host";
 
 // The Cesium 3D-globe view (see private/cesium-view-plan.md). M1 wired the
 // build, token, and split-pane mount; M2 synced the camera with the shared store
@@ -101,6 +102,7 @@ export const CesiumCanvas = memo(function CesiumCanvas({ viewId, ionToken }: Ces
   const viewerRef = useRef<CesiumWidget | null>(null);
   const cesiumRef = useRef<typeof import("@cesium/engine") | null>(null);
   const engineRef = useRef<CesiumEngine | null>(null);
+  const controlHostRef = useRef<CesiumControlHost | null>(null);
   // The imagery layers currently drawing the project basemap, at the bottom of
   // the stack. Tracked so a basemap change replaces exactly these and leaves
   // the data layers above them alone.
@@ -306,6 +308,11 @@ export const CesiumCanvas = memo(function CesiumCanvas({ viewId, ionToken }: Ces
         // moveEnd listener that cleanupInput never removes.
         if (cancelled || viewer.isDestroyed()) return;
 
+        if (viewId === undefined) {
+          controlHostRef.current = new CesiumControlHost(viewer, container);
+          setPrimaryCesiumControlHost(controlHostRef.current);
+        }
+
         // Seed the camera from the shared store camera before the first frame.
         // The primary globe always seeds from `mapView`, which is what carries
         // the camera across a renderer switch: MapLibre wrote the view the user
@@ -343,6 +350,13 @@ export const CesiumCanvas = memo(function CesiumCanvas({ viewId, ionToken }: Ces
       // the handles so a remount starts from an empty stack and redraws.
       baseImageryLayersRef.current = [];
       appliedImageryRef.current = null;
+      if (viewId === undefined) {
+        if (controlHostRef.current) {
+          controlHostRef.current.destroy();
+          controlHostRef.current = null;
+        }
+        setPrimaryCesiumControlHost(null);
+      }
       const viewer = viewerRef.current;
       if (viewer && !viewer.isDestroyed()) viewer.destroy();
       viewerRef.current = null;

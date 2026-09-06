@@ -17,8 +17,14 @@ export {
 export { PANEL_RESIZE_END_EVENT, PANEL_RESIZE_START_EVENT } from "./map-resize";
 export { SecondaryMapCanvas, type SecondaryMapCanvasProps } from "./SecondaryMapCanvas";
 export { CesiumCanvas, type CesiumCanvasProps } from "./CesiumCanvas";
+export { getPrimaryCesiumControlHost } from "./cesium-control-host";
 export { isCesiumSupportedLayerType } from "./cesium-layer-sync";
-export { CESIUM_CAPABILITIES, CesiumEngine, type CesiumEngineOptions } from "./cesium-engine";
+export {
+  CESIUM_CAPABILITIES,
+  CESIUM_PANE_CAPABILITIES,
+  CesiumEngine,
+  type CesiumEngineOptions,
+} from "./cesium-engine";
 export {
   applyMapViewToCamera,
   cameraFovy,

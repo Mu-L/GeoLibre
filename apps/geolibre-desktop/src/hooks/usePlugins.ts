@@ -94,7 +94,7 @@ import {
   closeFloatingPanel,
   getOpenFloatingPanels,
 } from "@geolibre/plugins";
-import type { MapController } from "@geolibre/map";
+import { getPrimaryCesiumControlHost, type MapController } from "@geolibre/map";
 import type {
   GeoLibreCogLayerOptions,
   GeoLibreCogRenderEngine,
@@ -1198,9 +1198,17 @@ export function createAppAPI(mapControllerRef?: RefObject<MapController | null>)
     addMapControl: (
       control: Parameters<MapController["addControl"]>[0],
       position?: Parameters<MapController["addControl"]>[1],
-    ) => mapControllerRef?.current?.addControl(control, position) ?? false,
-    removeMapControl: (control: Parameters<MapController["removeControl"]>[0]) =>
-      mapControllerRef?.current?.removeControl(control),
+    ) =>
+      mapControllerRef?.current?.addControl(control, position) ??
+      getPrimaryCesiumControlHost()?.addControl(control, position) ??
+      false,
+    removeMapControl: (control: Parameters<MapController["removeControl"]>[0]) => {
+      if (mapControllerRef?.current) {
+        mapControllerRef.current.removeControl(control);
+      } else {
+        getPrimaryCesiumControlHost()?.removeControl(control);
+      }
+    },
     setBuiltInMapControlVisible: (
       control: Parameters<MapController["setBuiltInControlVisible"]>[0],
       visible: boolean,
