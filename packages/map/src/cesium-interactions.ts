@@ -20,8 +20,20 @@ export function installCesiumInteractions(
   let popup: HTMLElement | null = null;
   let hover: HTMLElement | null = null;
   let pending: Cartesian2 | null = null;
+  // Where the cursor last rested over the canvas. Outlives `pending`, which a
+  // camera move clears, so the readout can be restored once the move settles.
+  let lastPointer: Cartesian2 | null = null;
   let frame = 0;
   let moving = false;
+  const publishPointer = (point: Cartesian2 | null) => {
+    const state = useAppStore.getState();
+    const pointer = point ? engine.readPointerAtScreen(point) : null;
+    state.setPointerCoords(pointer?.coordinates ?? null);
+    state.setPointerElevation(
+      state.preferences.map.showPointerElevation ? (pointer?.elevation ?? null) : null,
+    );
+    return state;
+  };
   const clearHover = () => {
     if (frame) cancelAnimationFrame(frame);
     frame = 0;
@@ -67,11 +79,12 @@ export function installCesiumInteractions(
   };
   handler.setInputAction((event: { endPosition: Cartesian2 }) => {
     pending = C.Cartesian2.clone(event.endPosition);
+    lastPointer = pending;
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = 0;
       const point = pending;
-      const state = useAppStore.getState();
+      const state = publishPointer(point);
       hover?.remove();
       hover = null;
       if (!point || moving || state.identifyLayerId) return;
@@ -133,6 +146,13 @@ export function installCesiumInteractions(
     );
   };
   const unsubscribe = useAppStore.subscribe((state, prev) => {
+    if (state.preferences.map.showPointerElevation !== prev.preferences.map.showPointerElevation) {
+      state.setPointerElevation(
+        state.preferences.map.showPointerElevation && lastPointer
+          ? (engine.readPointerAtScreen(lastPointer)?.elevation ?? null)
+          : null,
+      );
+    }
     if (
       state.selectedLayerId !== prev.selectedLayerId ||
       state.selectedFeatureIds !== prev.selectedFeatureIds ||
@@ -154,15 +174,25 @@ export function installCesiumInteractions(
       clearPopup();
     }
   };
-  viewer.canvas.addEventListener("mouseleave", clearHover);
+  const leave = () => {
+    clearHover();
+    lastPointer = null;
+    useAppStore.getState().setPointerCoords(null);
+  };
+  viewer.canvas.addEventListener("mouseleave", leave);
   window.addEventListener("keydown", escape);
   const moveStart = () => {
     moving = true;
     clearHover();
     clearPopup();
+    useAppStore.getState().setPointerCoords(null);
   };
   const moveEnd = () => {
     moving = false;
+    // Home, fullscreen, a scene-mode switch or drag momentum move the camera
+    // without a pointer event, so re-read the resting cursor instead of
+    // leaving the readout blank until the mouse moves again.
+    if (lastPointer) publishPointer(lastPointer);
   };
   viewer.camera.moveStart.addEventListener(moveStart);
   viewer.camera.moveEnd.addEventListener(moveEnd);
@@ -171,9 +201,9 @@ export function installCesiumInteractions(
   return () => {
     unsubscribe();
     handler.destroy();
-    clearHover();
+    leave();
     clearPopup();
-    viewer.canvas.removeEventListener("mouseleave", clearHover);
+    viewer.canvas.removeEventListener("mouseleave", leave);
     window.removeEventListener("keydown", escape);
     viewer.camera.moveStart.removeEventListener(moveStart);
     viewer.camera.moveEnd.removeEventListener(moveEnd);

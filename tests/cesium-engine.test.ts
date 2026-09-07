@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import { useAppStore } from "../packages/core/src/store";
 import type { MapViewState } from "../packages/core/src/types";
-import { CesiumEngine, CESIUM_CAPABILITIES } from "../packages/map/src/cesium-engine";
+import {
+  CesiumEngine,
+  CESIUM_CAPABILITIES,
+  resetPrimaryCesiumBuiltInControlState,
+} from "../packages/map/src/cesium-engine";
 import {
   setPrimaryCesiumControlHost,
   type CesiumControlHost,
@@ -126,6 +130,8 @@ function makeViewer(groundHeight = 0) {
   // correction's own guard exits before re-applying and the assertion passes
   // whether or not it ran.
   let height = groundHeight;
+  let groundPick = true;
+  let ellipsoidPick = true;
   const moveEnd = makeEvent();
   const tileLoadProgressEvent = makeEvent();
   const morphComplete = makeEvent();
@@ -188,7 +194,7 @@ function makeViewer(groundHeight = 0) {
         state.pitch = options.offset.pitch;
       },
       getPickRay: () => ({ ray: true }),
-      pickEllipsoid: () => ({ x: state.lng, y: state.lat, z: 0 }),
+      pickEllipsoid: () => (ellipsoidPick ? { x: state.lng, y: state.lat, z: 0 } : undefined),
     },
     scene: {
       canvas,
@@ -202,10 +208,13 @@ function makeViewer(groundHeight = 0) {
         maximumZoomDistance: Infinity,
       },
       globe: {
-        ellipsoid: { name: "wgs84" },
+        ellipsoid: {
+          name: "wgs84",
+          cartesianToCartographic: makeCesium().Cartographic.fromCartesian,
+        },
         tileLoadProgressEvent,
         getHeight: () => height,
-        pick: () => ({ x: state.lng, y: state.lat, z: 0 }),
+        pick: () => (groundPick ? { x: state.lng, y: state.lat, z: height } : undefined),
       },
     },
   };
@@ -226,6 +235,10 @@ function makeViewer(groundHeight = 0) {
   }
   return {
     viewer: viewer as never,
+    setPickHits(ground: boolean, ellipsoid: boolean) {
+      groundPick = ground;
+      ellipsoidPick = ellipsoid;
+    },
     moveEnd,
     tileLoadProgressEvent,
     morphComplete,
@@ -312,6 +325,7 @@ describe("CesiumEngine capabilities", () => {
       primary.destroy();
     } finally {
       setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
     }
     assert.equal(CESIUM_CAPABILITIES.domControls, true, "the primary globe still hosts controls");
   });
@@ -911,15 +925,17 @@ describe("CesiumEngine scene-mode morphs", () => {
 describe("CesiumEngine built-in controls", () => {
   /** A control host recording what was mounted and unmounted. */
   function fakeHost() {
-    const calls = { added: [] as unknown[], removed: [] as unknown[] };
+    const calls = { added: [] as unknown[], removed: [] as unknown[], positions: [] as string[] };
     const host = {
-      addControl: (control: unknown) => {
+      addControl: (control: unknown, position: string) => {
         calls.added.push(control);
+        calls.positions.push(position);
         return true;
       },
       removeControl: (control: unknown) => {
         calls.removed.push(control);
       },
+      setControlPosition: () => true,
     } as unknown as CesiumControlHost;
     return { calls, host };
   }
@@ -938,6 +954,7 @@ describe("CesiumEngine built-in controls", () => {
       engine.destroy();
     } finally {
       setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
     }
   });
 
@@ -949,16 +966,19 @@ describe("CesiumEngine built-in controls", () => {
       const engine = new CesiumEngine(makeCesium(), fakes.viewer);
       const control = { onAdd: () => document.createElement("div"), onRemove: () => {} };
       engine.registerBuiltInControl("fullscreen", control as never);
+      // Registration mounts, so the canvas never has to add the control itself.
+      assert.deepEqual(calls.added, [control]);
 
       assert.equal(engine.setBuiltInControlVisible("fullscreen", false), true);
       assert.deepEqual(calls.removed, [control]);
       assert.equal(engine.setBuiltInControlVisible("fullscreen", true), true);
-      assert.deepEqual(calls.added, [control]);
+      assert.deepEqual(calls.added, [control, control]);
       // Registering one control must not make the engine claim the others.
       assert.equal(engine.setBuiltInControlVisible("compass", true), false);
       engine.destroy();
     } finally {
       setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
     }
   });
 
@@ -977,6 +997,42 @@ describe("CesiumEngine built-in controls", () => {
       pane.destroy();
     } finally {
       setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
+    }
+  });
+
+  it("remounts a control in the state the last globe gave it", () => {
+    const { calls, host } = fakeHost();
+    setPrimaryCesiumControlHost(host);
+    try {
+      const control = { onAdd: () => document.createElement("div"), onRemove: () => {} };
+      // A renderer swap away from Cesium and back destroys the engine; the
+      // Controls menu and a plugin that moved the control keep their state, so
+      // the next engine must not mount the hidden control, and must put the
+      // moved one back in its corner, before the menu replays anything.
+      const first = new CesiumEngine(makeCesium(), makeViewer().viewer);
+      first.registerBuiltInControl("fullscreen", control as never);
+      first.registerBuiltInControl("compass", control as never);
+      assert.equal(first.setBuiltInControlVisible("fullscreen", false), true);
+      assert.equal(first.setBuiltInControlPosition("compass", "bottom-left"), true);
+      first.destroy();
+      calls.added.length = 0;
+      calls.positions.length = 0;
+
+      const second = new CesiumEngine(makeCesium(), makeViewer().viewer);
+      second.registerBuiltInControl("fullscreen", control as never);
+      assert.deepEqual(calls.added, []);
+      second.registerBuiltInControl("compass", control as never);
+      assert.deepEqual(calls.added, [control]);
+      assert.deepEqual(calls.positions, ["bottom-left"]);
+      assert.equal(second.getBuiltInControlPosition("compass"), "bottom-left");
+      // The menu's replay is what un-hides it, and that goes through the same path.
+      assert.equal(second.setBuiltInControlVisible("fullscreen", true), true);
+      assert.deepEqual(calls.added, [control, control]);
+      second.destroy();
+    } finally {
+      setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
     }
   });
 
@@ -992,9 +1048,10 @@ describe("CesiumEngine built-in controls", () => {
       // A late toggle (the app replays control visibility on project load) must
       // not re-mount a control onto a globe that is already gone.
       assert.equal(engine.setBuiltInControlVisible("fullscreen", true), false);
-      assert.deepEqual(calls.added, []);
+      assert.deepEqual(calls.added, [control]);
     } finally {
       setPrimaryCesiumControlHost(null);
+      resetPrimaryCesiumBuiltInControlState();
     }
   });
 });
@@ -1232,4 +1289,74 @@ it("rejects far-side coordinates before GPU picking, including below-sea-level t
   engine.identifyFeatures([180, 0]);
   assert.equal(picks, 3, "flat views must not use 3D occlusion");
   engine.destroy();
+});
+
+describe("Cesium cursor ground picking", () => {
+  it("keeps signed terrain elevation, falls back to the ellipsoid, and clears sky/morph hits", () => {
+    const C = makeCesium();
+    const f = makeViewer(-42);
+    const engine = new CesiumEngine(C, f.viewer);
+    const point = new C.Cartesian2(400, 300);
+    assert.deepEqual(engine.readPointerAtScreen(point), { coordinates: [0, 0], elevation: -42 });
+    f.setPickHits(false, true);
+    assert.deepEqual(engine.readPointerAtScreen(point), { coordinates: [0, 0], elevation: null });
+    f.setPickHits(false, false);
+    assert.equal(engine.readPointerAtScreen(point), null);
+    f.setPickHits(true, true);
+    f.setSceneMode(C.SceneMode.MORPHING);
+    assert.equal(engine.readPointerAtScreen(point), null);
+    f.setSceneMode(C.SceneMode.SCENE3D);
+    assert.equal(engine.readPointerAtScreen(new C.Cartesian2(NaN, 0)), null);
+    engine.destroy();
+    assert.equal(engine.readPointerAtScreen(point), null);
+  });
+});
+
+it("reports the projected scene modes and the 3D globe", () => {
+  const C = makeCesium();
+  const f = makeViewer();
+  const engine = new CesiumEngine(C, f.viewer);
+  for (const mode of [C.SceneMode.SCENE2D, C.SceneMode.COLUMBUS_VIEW]) {
+    f.setSceneMode(mode);
+    assert.equal(engine.readProjection(), "mercator");
+  }
+  f.setSceneMode(C.SceneMode.SCENE3D);
+  assert.equal(engine.readProjection(), "globe");
+  engine.destroy();
+});
+
+it("remembers a hidden control's corner and refuses unregistered/pane controls", () => {
+  const positions: string[] = [];
+  setPrimaryCesiumControlHost({
+    setControlPosition: (_control: unknown, position: string) => {
+      positions.push(position);
+      return true;
+    },
+    addControl: (_control: unknown, position: string) => {
+      positions.push(position);
+      return true;
+    },
+    removeControl: () => {},
+  } as unknown as CesiumControlHost);
+  const engine = new CesiumEngine(makeCesium(), makeViewer().viewer);
+  const pane = new CesiumEngine(makeCesium(), makeViewer().viewer, { viewId: "pane" });
+  try {
+    const control = {} as never;
+    engine.registerBuiltInControl("fullscreen", control);
+    pane.registerBuiltInControl("fullscreen", control);
+    assert.equal(engine.setBuiltInControlPosition("compass", "top-left"), false);
+    assert.equal(pane.setBuiltInControlPosition("fullscreen", "top-left"), false);
+    engine.setBuiltInControlVisible("fullscreen", false);
+    assert.equal(engine.setBuiltInControlPosition("fullscreen", "bottom-left"), true);
+    assert.equal(engine.getBuiltInControlPosition("fullscreen"), "bottom-left");
+    engine.setBuiltInControlVisible("fullscreen", true);
+    // Registration mounted it top-right; hiding it then moving it recorded the
+    // corner, and un-hiding mounted it there.
+    assert.deepEqual(positions, ["top-right", "bottom-left", "bottom-left"]);
+  } finally {
+    engine.destroy();
+    pane.destroy();
+    setPrimaryCesiumControlHost(null);
+    resetPrimaryCesiumBuiltInControlState();
+  }
 });

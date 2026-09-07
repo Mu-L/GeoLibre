@@ -1,4 +1,9 @@
-import { resolveThreeDTilesRequestHeaders, type GeoLibreLayer } from "@geolibre/core";
+import {
+  DEFAULT_LAYER_STYLE,
+  resolveThreeDTilesRequestHeaders,
+  type GeoLibreLayer,
+} from "@geolibre/core";
+import { createCesiumLabeler, pickLabelPart } from "./cesium-labels";
 import type {
   Cesium3DTileset,
   CesiumWidget,
@@ -294,7 +299,18 @@ function entryKind(layer: GeoLibreLayer): EntryKind {
 // alpha instead of reloading the whole GeoJsonDataSource on every tick.
 function styleSignature(layer: GeoLibreLayer): string {
   const style = layer.style ?? {};
-  return [style.fillColor, style.strokeColor, style.strokeWidth, style.markerColor].join("|");
+  // The layer zoom range only reaches the globe through the labels' distance
+  // limits, so it forces a reload only while labels are on; dragging the range
+  // on an unlabelled layer must not re-parse every feature.
+  const labels = { ...DEFAULT_LAYER_STYLE.labels, ...style.labels };
+  return JSON.stringify([
+    style.fillColor,
+    style.strokeColor,
+    style.strokeWidth,
+    style.markerColor,
+    style.labels,
+    ...(labels.enabled ? [style.minZoom, style.maxZoom] : []),
+  ]);
 }
 
 /**
@@ -749,10 +765,26 @@ export class CesiumLayerSync {
         viewer.dataSources.remove(dataSource, true);
         return;
       }
+      // A multipart feature arrives as several entities sharing one index; it
+      // gets one label, on its largest part (pickLabelPart), not one per part.
+      // The grouping (and pickLabelPart's geometry math) is skipped outright
+      // when the layer has no labels, so an unlabelled boundary set pays nothing.
+      const labelsEnabled = Boolean({ ...DEFAULT_LAYER_STYLE.labels, ...style.labels }.enabled);
+      const labelEntity = labelsEnabled ? createCesiumLabeler(Cesium, viewer, layer) : null;
+      const parts = new Map<number, Entity[]>();
       for (const entity of dataSource.entities.values) {
         const index = entity.properties?.[indexKey]?.getValue(viewer.clock.currentTime);
-        if (Number.isInteger(index)) this.featureRefs.set(entity, { layerId: layer.id, index });
+        if (Number.isInteger(index)) {
+          this.featureRefs.set(entity, { layerId: layer.id, index });
+          if (!labelEntity) continue;
+          const group = parts.get(index);
+          if (group) group.push(entity);
+          else parts.set(index, [entity]);
+        }
       }
+      if (labelEntity)
+        for (const [index, entities] of parts)
+          labelEntity(pickLabelPart(Cesium, viewer, entities), index);
       entry.handle = dataSource;
       // applyAppearance → applyGeoJsonStyle fades every entity kind (fill,
       // stroke, marker) by the layer opacity right after load, so points/lines
@@ -848,6 +880,14 @@ export class CesiumLayerSync {
     // Point pins keep their baked-in colour; multiplying by white+alpha only
     // fades them.
     const marker = Cesium.Color.WHITE.withAlpha(opacity);
+    // Scale the label colour's own alpha (an rgba()/#rrggbbaa label colour) by
+    // the layer opacity, as text-opacity does on the 2D map, rather than
+    // replacing it. Computed once: this runs on every opacity-slider drag.
+    const labels = { ...DEFAULT_LAYER_STYLE.labels, ...style.labels };
+    const labelColor = Cesium.Color.fromCssColorString(labels.color);
+    const labelFill = labelColor.withAlpha(labelColor.alpha * opacity);
+    const halo = Cesium.Color.fromCssColorString(labels.haloColor);
+    const labelOutline = halo.withAlpha(halo.alpha * opacity);
     for (const feature of dataSource.entities.values) {
       if (feature.polygon) {
         feature.polygon.material = new Cesium.ColorMaterialProperty(fill);
@@ -857,6 +897,10 @@ export class CesiumLayerSync {
       }
       if (feature.billboard) {
         feature.billboard.color = new Cesium.ConstantProperty(marker);
+      }
+      if (feature.label) {
+        feature.label.fillColor = new Cesium.ConstantProperty(labelFill);
+        feature.label.outlineColor = new Cesium.ConstantProperty(labelOutline);
       }
     }
   }
