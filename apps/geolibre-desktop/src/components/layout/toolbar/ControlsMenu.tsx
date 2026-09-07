@@ -1,4 +1,5 @@
 import { useAppStore } from "@geolibre/core";
+import { TERRAIN_SETTINGS_EVENT } from "@geolibre/map";
 import {
   DEFAULT_EFFECTS_SETTINGS,
   type EffectsSettings,
@@ -209,6 +210,13 @@ export function ControlsMenu({
               {controlsVisible[control.id] ? " ✓" : ""}
             </DropdownMenuItem>
           ))}
+          {show("controls.mapControl.terrain") && (
+            <DropdownMenuItem
+              onClick={() => window.dispatchEvent(new CustomEvent(TERRAIN_SETTINGS_EVENT))}
+            >
+              {t("terrainSettings.title")}
+            </DropdownMenuItem>
+          )}
           {(show("controls.mapControl.logo") || show("controls.mapControl.maptoolkit-logo")) && (
             <LogosSubmenu
               controlsVisible={controlsVisible}
@@ -364,25 +372,13 @@ export function ControlsMenu({
             </DropdownMenuItem>
           )}
           {show("controls.recordTour") && (
-            // Tour recording captures frames from the MapLibre canvas, so without
-            // a native map the Record button would look enabled and do nothing
-            // (#2268 review).
-            <DropdownMenuItem
-              onSelect={onOpenRecordTour}
-              disabled={!capabilities.nativeMapInstance}
-            >
+            <DropdownMenuItem onSelect={onOpenRecordTour}>
               <Video className="me-2 h-3.5 w-3.5" />
               {t("toolbar.item.recordTour")}
             </DropdownMenuItem>
           )}
           {show("controls.recordVideo") && (
-            // Same MapLibre-canvas dependency as Record Tour above:
-            // RecordVideoDialog builds its recording canvas from `getMap()` /
-            // `getContainer()` (#2268 review).
-            <DropdownMenuItem
-              onSelect={onOpenRecordVideo}
-              disabled={!capabilities.nativeMapInstance}
-            >
+            <DropdownMenuItem onSelect={onOpenRecordVideo}>
               <Clapperboard className="me-2 h-3.5 w-3.5" />
               {t("toolbar.item.recordVideo")}
             </DropdownMenuItem>
