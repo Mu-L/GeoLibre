@@ -1,8 +1,12 @@
 import {
+  compileQuickFilters,
   DEFAULT_LAYER_STYLE,
   resolveThreeDTilesRequestHeaders,
+  ruleBasedVisibilityFilter,
   type GeoLibreLayer,
 } from "@geolibre/core";
+import { featureFilter } from "@maplibre/maplibre-gl-style-spec";
+import { readMapViewFromCamera } from "./cesium-camera";
 import { createCesiumLabeler, pickLabelPart } from "./cesium-labels";
 import type {
   Cesium3DTileset,
@@ -28,6 +32,15 @@ import type {
 // build graph itself.
 
 type CesiumNs = typeof import("@cesium/engine");
+
+/** Whether a serialized filter reads `["zoom"]`, so its result depends on the camera. */
+const ZOOM_OPERAND = /\[\s*"zoom"\s*\]/;
+
+/** The subset of a Cesium `Event` the camera watch needs. */
+interface CameraEvent {
+  addEventListener(listener: () => void): unknown;
+  removeEventListener(listener: () => void): unknown;
+}
 
 /** Layer kinds this pass renders on the globe. */
 const IMAGERY_TYPES = new Set(["raster", "xyz", "wms", "wmts", "image"]);
@@ -81,6 +94,67 @@ interface LayerEntry {
   cancelled: boolean;
   /** Last opacity key applied in place to a geojson entry (skips redundant restyles). */
   appliedAlpha?: string;
+  /** Last filter expression key applied in place (skips redundant filter evaluations). */
+  appliedFilterKey?: string;
+  /** Whether the applied filter reads `["zoom"]`, so it must re-run when the camera moves. */
+  zoomFilter?: boolean;
+}
+
+/**
+ * Compose a layer's per-feature filter expression from its transient time filter,
+ * embed API filter, compiled quick filters, rule-based visibility filter, and
+ * annotation visibility filter. Returns null when no filter constrains the layer.
+ */
+export function composeLayerFeatureFilter(layer: GeoLibreLayer): unknown[] | null {
+  const filters: unknown[] = [];
+  const timeFilter = layer.timeFilter;
+  if (Array.isArray(timeFilter) && timeFilter.length > 0) {
+    filters.push(timeFilter);
+  }
+  if (Array.isArray(layer.embedFilter) && layer.embedFilter.length > 0) {
+    filters.push(layer.embedFilter);
+  }
+  const quickFilter = compileQuickFilters(layer.quickFilters);
+  if (quickFilter) {
+    filters.push(quickFilter);
+  }
+  const ruleFilter = ruleBasedVisibilityFilter(layer.style ?? {});
+  if (ruleFilter) {
+    filters.push(ruleFilter);
+  }
+  if (layer.metadata?.sourceKind === "annotation") {
+    filters.push(["!=", ["get", "visible"], false]);
+  }
+  if (filters.length === 0) return null;
+  if (filters.length === 1) return filters[0] as unknown[];
+  return ["all", ...filters];
+}
+
+/**
+ * Recursively extracts a valid timestamp or ISO date string from a MapLibre filter
+ * expression, returning a Date instance if found.
+ *
+ * @param filter The filter expression array or sub-expression to inspect.
+ * @returns A parsed Date if a temporal value is found, or null otherwise.
+ */
+export function extractTimeFilterDate(filter: unknown): Date | null {
+  if (!Array.isArray(filter)) return null;
+  for (const item of filter) {
+    if (Array.isArray(item)) {
+      const d = extractTimeFilterDate(item);
+      if (d) return d;
+    } else if (typeof item === "number" && Number.isFinite(item)) {
+      if (item > 100000000000 && item < 4102444800000) {
+        return new Date(item);
+      }
+    } else if (typeof item === "string" && item.length >= 10) {
+      const d = new Date(item);
+      if (!Number.isNaN(d.getTime()) && d.getFullYear() >= 1970 && d.getFullYear() <= 2100) {
+        return d;
+      }
+    }
+  }
+  return null;
 }
 
 function str(value: unknown): string | undefined {
@@ -389,6 +463,7 @@ export class CesiumLayerSync {
       !entry.layer.visible ||
       entry.layer.opacity <= 0 ||
       entry.kind !== "geojson" ||
+      (entity as { show?: boolean }).show === false ||
       !(entry.handle as DataSource | null)?.entities.contains(entity as Entity)
     )
       return null;
@@ -457,15 +532,29 @@ export class CesiumLayerSync {
   /** Active layer list from the current/latest sync pass. */
   private currentLayers: GeoLibreLayer[] = [];
 
+  /**
+   * @param readZoom Supplies the camera's MapLibre zoom for `["zoom"]` filters;
+   *   defaults to reading the live camera and is injectable for tests.
+   */
   constructor(
     private readonly Cesium: CesiumNs,
     private readonly viewer: CesiumWidget,
+    private readonly readZoom: () => number = () => readMapViewFromCamera(Cesium, viewer).zoom,
   ) {}
 
   /** Reconcile the globe to `layers` (order preserved for imagery stacking). */
   sync(layers: GeoLibreLayer[]): void {
     this.restoreHighlight();
     this.currentLayers = layers;
+    for (const layer of layers) {
+      if (Array.isArray(layer.timeFilter) && layer.timeFilter.length > 0) {
+        const d = extractTimeFilterDate(layer.timeFilter);
+        if (d) {
+          this.setTime(d);
+          break;
+        }
+      }
+    }
     const nextIds = new Set(layers.map((l) => l.id));
     for (const [id, entry] of this.entries) {
       if (!nextIds.has(id)) {
@@ -522,6 +611,7 @@ export class CesiumLayerSync {
       this.lastImageryOrder = imageryOrder;
     }
     this.applyHighlight();
+    this.watchCameraZoom();
   }
 
   destroy(): void {
@@ -529,6 +619,66 @@ export class CesiumLayerSync {
     this.selection = null;
     for (const entry of this.entries.values()) this.destroyEntry(entry);
     this.entries.clear();
+    this.unwatchCamera?.();
+    this.unwatchCamera = null;
+  }
+
+  /** Removes the camera listeners installed by {@link watchCameraZoom}, or null when none are. */
+  private unwatchCamera: (() => void) | null = null;
+
+  /**
+   * Keep camera listeners installed exactly while some entry's filter reads
+   * `["zoom"]`. MapLibre evaluates such a filter live; on the globe the filter
+   * is re-run when the camera settles (`moveEnd`) or moves far enough to fire
+   * `changed`, and {@link applyGeoJsonFilter} skips the work unless the integer
+   * zoom actually crossed a level.
+   */
+  private watchCameraZoom(): void {
+    let wanted = false;
+    for (const entry of this.entries.values()) {
+      if (entry.zoomFilter) {
+        wanted = true;
+        break;
+      }
+    }
+    if (wanted === Boolean(this.unwatchCamera)) return;
+    if (!wanted) {
+      this.unwatchCamera?.();
+      this.unwatchCamera = null;
+      return;
+    }
+    const camera = this.viewer.camera as
+      | { moveEnd?: CameraEvent; changed?: CameraEvent }
+      | undefined;
+    const events = [camera?.moveEnd, camera?.changed].filter((e): e is CameraEvent => Boolean(e));
+    if (events.length === 0) return;
+    const onMove = () => this.reapplyZoomFilters();
+    for (const event of events) event.addEventListener(onMove);
+    this.unwatchCamera = () => {
+      for (const event of events) event.removeEventListener(onMove);
+    };
+  }
+
+  /** Re-run every zoom-dependent filter; renders only if some entity's visibility changed. */
+  private reapplyZoomFilters(): void {
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      if (entry.kind !== "geojson" || !entry.zoomFilter || !entry.handle) continue;
+      const before = entry.appliedFilterKey;
+      this.applyGeoJsonFilter(entry);
+      if (entry.appliedFilterKey !== before) changed = true;
+    }
+    if (changed) this.viewer.scene?.requestRender?.();
+  }
+
+  /** The camera's integer MapLibre zoom, as `["zoom"]` filters evaluate at integer levels. */
+  private cameraZoom(): number {
+    try {
+      const zoom = this.readZoom();
+      return Number.isFinite(zoom) ? Math.floor(zoom) : 0;
+    } catch {
+      return 0;
+    }
   }
 
   private reorderImagery(): void {
@@ -773,7 +923,11 @@ export class CesiumLayerSync {
       const labelEntity = labelsEnabled ? createCesiumLabeler(Cesium, viewer, layer) : null;
       const parts = new Map<number, Entity[]>();
       for (const entity of dataSource.entities.values) {
-        const index = entity.properties?.[indexKey]?.getValue(viewer.clock.currentTime);
+        const propIndex = entity.properties?.[indexKey];
+        const index =
+          typeof propIndex?.getValue === "function"
+            ? propIndex.getValue(viewer.clock?.currentTime)
+            : propIndex;
         if (Number.isInteger(index)) {
           this.featureRefs.set(entity, { layerId: layer.id, index });
           if (!labelEntity) continue;
@@ -843,12 +997,181 @@ export class CesiumLayerSync {
     if (entry.kind === "imagery") {
       const imagery = handle as ImageryLayer;
       imagery.show = layer.visible;
-      imagery.alpha = layer.opacity;
+      imagery.alpha = this.effectiveOpacity(entry);
     } else if (entry.kind === "geojson") {
       (handle as DataSource).show = layer.visible;
       this.applyGeoJsonStyle(entry);
+      this.applyGeoJsonFilter(entry);
     } else {
       (handle as Cesium3DTileset).show = layer.visible;
+    }
+  }
+
+  private readonly storyOpacities = new Map<
+    string,
+    { originalOpacity: number; currentOpacity: number }
+  >();
+
+  private effectiveOpacity(entry: LayerEntry): number {
+    const override = this.storyOpacities.get(entry.layer.id);
+    return override !== undefined ? override.currentOpacity : entry.layer.opacity;
+  }
+
+  /**
+   * Synchronize the viewer clock's current time to a date (e.g. from the Time Slider).
+   *
+   * @param date Date, timestamp string, or epoch milliseconds to set on the Cesium clock.
+   */
+  setTime(date: Date | string | number): void {
+    const d = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(d.getTime())) return;
+    const JulianDate = (this.Cesium as { JulianDate?: { fromDate?: (d: Date) => unknown } })
+      ?.JulianDate;
+    if (JulianDate?.fromDate && this.viewer.clock) {
+      this.viewer.clock.currentTime = JulianDate.fromDate(d) as never;
+    } else if (this.viewer.clock) {
+      (this.viewer.clock as unknown as { currentTime: unknown }).currentTime = d;
+    }
+    this.viewer.scene?.requestRender?.();
+  }
+
+  /**
+   * Temporarily override a layer's opacity for story playback without mutating the
+   * underlying layer in the project store.
+   *
+   * @param layerId Unique identifier of the layer whose opacity to override.
+   * @param opacity Desired opacity clamped between 0 and 1.
+   */
+  setStoryLayerOpacity(layerId: string, opacity: number): void {
+    const entry = this.entries.get(layerId);
+    if (!entry) return;
+    const clamped = Math.min(1, Math.max(0, opacity));
+    const existing = this.storyOpacities.get(layerId);
+    if (!existing) {
+      this.storyOpacities.set(layerId, {
+        originalOpacity: entry.layer.opacity,
+        currentOpacity: clamped,
+      });
+    } else {
+      existing.currentOpacity = clamped;
+    }
+    // The override is stored either way; while the async create is still in
+    // flight there is nothing to restyle yet, and the create path applies the
+    // effective (story) opacity once the handle lands.
+    if (!entry.handle) return;
+    entry.appliedAlpha = undefined;
+    this.applyAppearance(entry);
+    this.viewer.scene?.requestRender?.();
+  }
+
+  /**
+   * Revert all temporary story opacities applied by {@link setStoryLayerOpacity}
+   * back to the stored layer opacity.
+   */
+  restoreStoryLayerStyles(): void {
+    if (this.storyOpacities.size === 0) return;
+    const layersToRestore = Array.from(this.storyOpacities.keys());
+    this.storyOpacities.clear();
+    for (const layerId of layersToRestore) {
+      const entry = this.entries.get(layerId);
+      if (!entry || !entry.handle) continue;
+      entry.appliedAlpha = undefined;
+      this.applyAppearance(entry);
+    }
+    this.viewer.scene?.requestRender?.();
+  }
+
+  /**
+   * Evaluate a layer's composed feature filter (timeFilter, embedFilter, quickFilters,
+   * rule-based visibility) against each GeoJSON entity, toggling `entity.show` in place.
+   */
+  private applyGeoJsonFilter(entry: LayerEntry): void {
+    const dataSource = entry.handle as DataSource | null;
+    if (!dataSource) return;
+    const filter = composeLayerFeatureFilter(entry.layer);
+    const filterKey = filter ? JSON.stringify(filter) : "";
+    // A rule-based visibility filter carries `["zoom"]` for per-rule zoom
+    // bounds (and an embed filter may too). The integer camera zoom joins the
+    // cache key so the filter re-runs exactly when the camera crosses a level.
+    const zoomDependent = ZOOM_OPERAND.test(filterKey);
+    const zoom = zoomDependent ? this.cameraZoom() : 0;
+    const key = zoomDependent ? `${filterKey}@z${zoom}` : filterKey;
+    entry.zoomFilter = zoomDependent;
+    this.watchCameraZoom();
+    if (entry.appliedFilterKey === key) return;
+    entry.appliedFilterKey = key;
+
+    const { viewer } = this;
+    const currentTime = viewer.clock?.currentTime;
+    const indexKey = "__geolibre_cesium_feature_index";
+    const features = entry.layer.geojson?.features;
+
+    if (!filter) {
+      for (const entity of dataSource.entities.values) {
+        entity.show = true;
+      }
+      return;
+    }
+
+    let compiled: ReturnType<typeof featureFilter>;
+    try {
+      compiled = featureFilter(filter as never, "layers[0].filter");
+    } catch {
+      for (const entity of dataSource.entities.values) {
+        entity.show = true;
+      }
+      return;
+    }
+
+    const typeMap: Record<string, 1 | 2 | 3> = {
+      Point: 1,
+      MultiPoint: 1,
+      LineString: 2,
+      MultiLineString: 2,
+      Polygon: 3,
+      MultiPolygon: 3,
+    };
+
+    for (const entity of dataSource.entities.values) {
+      const propIndex = entity.properties?.[indexKey];
+      const index =
+        typeof propIndex?.getValue === "function" ? propIndex.getValue(currentTime) : propIndex;
+      const feat = Number.isInteger(index) && features ? features[index] : null;
+      let properties: Record<string, unknown> = {};
+      let geomType: 0 | 1 | 2 | 3 = 1;
+      let id: unknown = undefined;
+
+      if (feat) {
+        properties = (feat.properties as Record<string, unknown>) ?? {};
+        geomType = (feat.geometry?.type && typeMap[feat.geometry.type]) ?? 1;
+        id = feat.id;
+      } else if (entity.properties) {
+        const propBag = entity.properties as Record<string, unknown>;
+        const names = Array.isArray(propBag.propertyNames)
+          ? propBag.propertyNames
+          : Object.keys(propBag);
+        for (const name of names) {
+          if (name === indexKey) continue;
+          const val = propBag[name];
+          properties[name] =
+            typeof (val as { getValue?: (t: unknown) => unknown })?.getValue === "function"
+              ? (val as { getValue: (t: unknown) => unknown }).getValue(currentTime)
+              : val;
+        }
+      }
+
+      let visible = true;
+      try {
+        visible = compiled.filter({ zoom }, {
+          type: geomType,
+          properties,
+          id,
+          geometry: feat?.geometry,
+        } as never);
+      } catch {
+        visible = true;
+      }
+      entity.show = visible;
     }
   }
 
@@ -865,7 +1188,7 @@ export class CesiumLayerSync {
     const dataSource = entry.handle as DataSource | null;
     if (!dataSource) return;
     const style = entry.layer.style ?? {};
-    const opacity = entry.layer.opacity;
+    const opacity = this.effectiveOpacity(entry);
     const fillAlpha = (style.fillOpacity ?? 0.6) * opacity;
     // Key on both alphas so any opacity change is picked up (e.g. a lines-only
     // layer whose fill alpha never varies).
@@ -907,6 +1230,7 @@ export class CesiumLayerSync {
 
   private destroyEntry(entry: LayerEntry): void {
     entry.cancelled = true;
+    this.storyOpacities.delete(entry.layer.id);
     const { handle } = entry;
     if (!handle) return;
     if (entry.kind === "imagery") {

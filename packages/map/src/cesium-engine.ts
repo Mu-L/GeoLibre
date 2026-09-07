@@ -561,9 +561,26 @@ export class CesiumEngine implements MapEngine {
    * the globe does not have. `CesiumLayerSync` applies `layer.opacity` on sync,
    * so a story that writes opacity to the store still fades on the globe.
    */
-  setStoryLayerOpacity(_layerId: string, _opacity: number, _durationMs?: number): void {}
+  setStoryLayerOpacity(layerId: string, opacity: number, _durationMs?: number): void {
+    this.layerSync.setStoryLayerOpacity(layerId, opacity);
+  }
 
-  restoreLayerStyles(): void {}
+  /**
+   * Revert all temporary layer style overrides (such as story opacities) applied
+   * during playback back to their stored layer opacities.
+   */
+  restoreLayerStyles(): void {
+    this.layerSync.restoreStoryLayerStyles();
+  }
+
+  /**
+   * Synchronize the globe clock's current time to a date (e.g. from the Time Slider).
+   *
+   * @param date Date, timestamp string, or epoch milliseconds to set on the Cesium clock.
+   */
+  setTime(date: Date | string | number): void {
+    this.layerSync.setTime(date);
+  }
 
   // ------------------------------------------------------------------ picking
 

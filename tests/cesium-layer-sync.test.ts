@@ -26,15 +26,24 @@ function makeFakes() {
     singleTileProviders: [] as { url: unknown; options?: Record<string, unknown> }[],
     geojsonLoads: [] as { data: unknown; options: Record<string, unknown> }[],
     tilesetUrls: [] as unknown[],
+    cameraListeners: [] as (() => void)[],
   };
 
   const viewer = {
+    clock: {
+      currentTime: { dayNumber: 0, secondsOfDay: 0 },
+    },
+    camera: {
+      moveEnd: mkEvent(calls.cameraListeners),
+      changed: mkEvent(calls.cameraListeners),
+    },
     scene: {
       canvas: { clientWidth: 800, clientHeight: 600, width: 800, height: 600 },
       primitives: {
         add: (p: unknown) => calls.primitivesAdded.push(p),
         remove: (p: unknown) => calls.primitivesRemoved.push(p),
       },
+      requestRender: () => {},
     },
     imageryLayers: {
       addImageryProvider: (provider: unknown) => {
@@ -120,21 +129,64 @@ function makeFakes() {
     GeoJsonDataSource: {
       load: (data: unknown, options: Record<string, unknown>) => {
         calls.geojsonLoads.push({ data, options });
+        const features =
+          (data as { features?: Array<{ properties?: Record<string, unknown> }> })?.features ?? [];
         return Promise.resolve({
           kind: "geojson",
           show: true,
-          // One entity of each kind so in-place restyle (applyGeoJsonStyle) can
-          // be checked for polygons, lines, and points.
           entities: {
-            values: [
-              { polygon: { material: options.fill } },
-              { polyline: { material: options.stroke } },
-              { billboard: { color: undefined } },
-              { label: {} },
-            ],
+            values:
+              features.length > 1
+                ? features.map((f, i) => ({
+                    properties: {
+                      ...f.properties,
+                      __geolibre_cesium_feature_index: { getValue: () => i },
+                    },
+                    show: true,
+                    polygon: { material: options.fill },
+                    polyline: { material: options.stroke },
+                    billboard: { color: undefined },
+                  }))
+                : [
+                    {
+                      properties: {
+                        ...(features[0]?.properties ?? {}),
+                        __geolibre_cesium_feature_index: { getValue: () => 0 },
+                      },
+                      polygon: { material: options.fill },
+                      show: true,
+                    },
+                    {
+                      properties: {
+                        ...(features[0]?.properties ?? {}),
+                        __geolibre_cesium_feature_index: { getValue: () => 0 },
+                      },
+                      polyline: { material: options.stroke },
+                      show: true,
+                    },
+                    {
+                      properties: {
+                        ...(features[0]?.properties ?? {}),
+                        __geolibre_cesium_feature_index: { getValue: () => 0 },
+                      },
+                      billboard: { color: undefined },
+                      show: true,
+                    },
+                    {
+                      properties: {
+                        ...(features[0]?.properties ?? {}),
+                        __geolibre_cesium_feature_index: { getValue: () => 0 },
+                      },
+                      label: {},
+                      show: true,
+                    },
+                  ],
           },
         });
       },
+    },
+    JulianDate: {
+      fromDate: (date: Date) => ({ date, isJulianDate: true }),
     },
     ColorMaterialProperty: class {
       constructor(public color: unknown) {}
@@ -188,11 +240,25 @@ function mkLayer(over: Partial<GeoLibreLayer>): GeoLibreLayer {
   } as GeoLibreLayer;
 }
 
-function newSync(f: ReturnType<typeof makeFakes>) {
+/** A minimal Cesium `Event` stand-in that records its listeners in `bag`. */
+function mkEvent(bag: (() => void)[]) {
+  return {
+    addEventListener: (fn: () => void) => {
+      bag.push(fn);
+    },
+    removeEventListener: (fn: () => void) => {
+      const i = bag.indexOf(fn);
+      if (i >= 0) bag.splice(i, 1);
+    },
+  };
+}
+
+function newSync(f: ReturnType<typeof makeFakes>, readZoom?: () => number) {
   // The fakes stand in for the Cesium namespace + Viewer (cast through unknown).
   return new CesiumLayerSync(
     f.Cesium as unknown as typeof import("cesium"),
     f.viewer as unknown as import("cesium").Viewer,
+    readZoom,
   );
 }
 
@@ -1171,5 +1237,278 @@ describe("CesiumLayerSync", () => {
       layers.filter((l) => !isCesiumSupportedLayerType(l)).map((l) => l.id),
       ["p", "z"],
     );
+  });
+
+  it("applies timeFilter to hide non-matching GeoJSON entities and preserves matching ones", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      id: "points",
+      type: "geojson",
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            id: "1",
+            properties: { timestamp: 100 },
+            geometry: { type: "Point", coordinates: [0, 0] },
+          },
+          {
+            type: "Feature",
+            id: "2",
+            properties: { timestamp: 200 },
+            geometry: { type: "Point", coordinates: [1, 1] },
+          },
+          {
+            type: "Feature",
+            id: "3",
+            properties: { timestamp: 300 },
+            geometry: { type: "Point", coordinates: [2, 2] },
+          },
+        ],
+      },
+      timeFilter: [">=", ["get", "timestamp"], 200],
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+
+    const ds = f.calls.dataSourcesAdded[0] as {
+      entities: { values: Array<{ properties: Record<string, unknown>; show: boolean }> };
+    };
+    assert.ok(ds, "dataSource should be added");
+    assert.equal(ds.entities.values.length, 3);
+    assert.equal(ds.entities.values[0].show, false);
+    assert.equal(ds.entities.values[1].show, true);
+    assert.equal(ds.entities.values[2].show, true);
+
+    // Narrowing further
+    sync.sync([{ ...layer, timeFilter: [">=", ["get", "timestamp"], 300] }]);
+    assert.equal(ds.entities.values[0].show, false);
+    assert.equal(ds.entities.values[1].show, false);
+    assert.equal(ds.entities.values[2].show, true);
+
+    // Clearing the filter restores all entities
+    sync.sync([{ ...layer, timeFilter: undefined }]);
+    assert.equal(ds.entities.values[0].show, true);
+    assert.equal(ds.entities.values[1].show, true);
+    assert.equal(ds.entities.values[2].show, true);
+  });
+
+  it("applies quickFilters and embedFilter together", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      id: "filtered",
+      type: "geojson",
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            id: "a",
+            properties: { category: "A", score: 25 },
+            geometry: { type: "Point", coordinates: [0, 0] },
+          },
+          {
+            type: "Feature",
+            id: "b",
+            properties: { category: "B", score: 25 },
+            geometry: { type: "Point", coordinates: [1, 1] },
+          },
+          {
+            type: "Feature",
+            id: "c",
+            properties: { category: "A", score: 5 },
+            geometry: { type: "Point", coordinates: [2, 2] },
+          },
+          {
+            type: "Feature",
+            id: "d",
+            properties: { category: "B", score: 5 },
+            geometry: { type: "Point", coordinates: [3, 3] },
+          },
+        ],
+      },
+      embedFilter: [">=", ["get", "score"], 10],
+      quickFilters: [
+        {
+          id: "q1",
+          kind: "categorical",
+          field: "category",
+          values: ["A"],
+        },
+      ],
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+
+    const ds = f.calls.dataSourcesAdded[0] as {
+      entities: { values: Array<{ show: boolean }> };
+    };
+    // Feature 'a': category A, score >= 10 -> passes both
+    assert.equal(ds.entities.values[0].show, true);
+    // Feature 'b': category B, score >= 10 -> fails quickFilter
+    assert.equal(ds.entities.values[1].show, false);
+    // Feature 'c': category A, score < 10 -> fails embedFilter
+    assert.equal(ds.entities.values[2].show, false);
+    // Feature 'd': category B, score < 10 -> fails both
+    assert.equal(ds.entities.values[3].show, false);
+  });
+
+  it("synchronizes viewer clock currentTime when a layer carries a timeFilter date", async () => {
+    const sync = newSync(f);
+    const dateMs = new Date("2026-06-15T12:00:00Z").getTime();
+    const layer = mkLayer({
+      id: "temporal",
+      type: "geojson",
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } },
+        ],
+      },
+      timeFilter: [">=", ["get", "time"], dateMs],
+    });
+
+    sync.sync([layer]);
+    await f.flush();
+
+    const clockTime = f.viewer.clock.currentTime as unknown as {
+      date: Date;
+      isJulianDate: boolean;
+    };
+    assert.ok(clockTime, "clock should receive currentTime");
+    assert.equal(clockTime.date.getTime(), dateMs);
+  });
+
+  it("fades layers via setStoryLayerOpacity and restores them via restoreStoryLayerStyles", async () => {
+    const sync = newSync(f);
+    const geoLayer = mkLayer({
+      id: "geo",
+      type: "geojson",
+      opacity: 0.8,
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } },
+        ],
+      },
+    });
+    const imgLayer = mkLayer({
+      id: "img",
+      type: "xyz",
+      opacity: 0.7,
+      source: { tiles: ["https://tiles/{z}/{x}/{y}"] },
+    });
+
+    sync.sync([geoLayer, imgLayer]);
+    await f.flush();
+
+    const imgHandle = f.calls.imageryAdded[0] as { alpha: number };
+    assert.equal(imgHandle.alpha, 0.7);
+
+    // Apply temporary story opacity
+    sync.setStoryLayerOpacity("img", 0.2);
+    assert.equal(imgHandle.alpha, 0.2);
+
+    sync.setStoryLayerOpacity("geo", 0.1);
+    // Stored layer opacity must NOT be mutated
+    assert.equal(geoLayer.opacity, 0.8);
+
+    // Restore original styles
+    sync.restoreStoryLayerStyles();
+    assert.equal(imgHandle.alpha, 0.7);
+  });
+
+  it("preserves active story opacity override across sync until restored", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      id: "img",
+      type: "xyz",
+      opacity: 0.8,
+      source: { tiles: ["https://tiles/{z}/{x}/{y}"] },
+    });
+    sync.sync([layer]);
+    await f.flush();
+
+    const imgHandle = f.calls.imageryAdded[0] as { alpha: number };
+    assert.equal(imgHandle.alpha, 0.8);
+
+    // Override opacity during story playback
+    sync.setStoryLayerOpacity("img", 0.25);
+    assert.equal(imgHandle.alpha, 0.25);
+
+    // Later sync pass with unmodified layer state preserves the active override
+    sync.sync([layer]);
+    assert.equal(imgHandle.alpha, 0.25);
+
+    // Restoring reverts to persistent layer opacity
+    sync.restoreStoryLayerStyles();
+    assert.equal(imgHandle.alpha, 0.8);
+  });
+
+  it("re-evaluates a zoom-dependent filter when the camera crosses an integer zoom", async () => {
+    let zoom = 5.4;
+    const sync = newSync(f, () => zoom);
+    const layer = mkLayer({
+      id: "zoomed",
+      type: "geojson",
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } },
+          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [1, 1] } },
+        ],
+      },
+      embedFilter: [">=", ["zoom"], 10],
+    });
+    sync.sync([layer]);
+    await f.flush();
+    const ds = f.calls.dataSourcesAdded[0] as { entities: { values: Array<{ show: boolean }> } };
+    // Evaluated at the camera's zoom, not at zoom 0.
+    assert.equal(ds.entities.values[0].show, false);
+    assert.equal(ds.entities.values[1].show, false);
+    assert.ok(f.calls.cameraListeners.length > 0, "a zoom filter installs camera listeners");
+
+    // Camera settles above the threshold: the filter re-runs on the move event.
+    zoom = 12.2;
+    for (const fn of [...f.calls.cameraListeners]) fn();
+    assert.equal(ds.entities.values[0].show, true);
+    assert.equal(ds.entities.values[1].show, true);
+
+    // Clearing the zoom operand drops the listeners again.
+    sync.sync([{ ...layer, embedFilter: undefined }]);
+    assert.equal(f.calls.cameraListeners.length, 0);
+    assert.equal(ds.entities.values[0].show, true);
+  });
+
+  it("keeps a story opacity set before the layer's async create resolves", async () => {
+    const sync = newSync(f);
+    const layer = mkLayer({
+      id: "geo",
+      type: "geojson",
+      opacity: 0.8,
+      style: { fillOpacity: 0.5 },
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } },
+        ],
+      },
+    });
+    sync.sync([layer]);
+    // The GeoJsonDataSource is still loading (no handle yet) when the story fires.
+    sync.setStoryLayerOpacity("geo", 0.1);
+    await f.flush();
+    const ds = f.calls.dataSourcesAdded[0] as {
+      entities: { values: [{ polygon: { material: { color: { alpha: number } } } }] };
+    };
+    // fill = 0.5 fill opacity × 0.1 story opacity, not × 0.8 layer opacity.
+    assert.ok(Math.abs(ds.entities.values[0].polygon.material.color.alpha - 0.05) < 1e-9);
+    assert.equal(layer.opacity, 0.8);
+
+    sync.restoreStoryLayerStyles();
+    assert.ok(Math.abs(ds.entities.values[0].polygon.material.color.alpha - 0.4) < 1e-9);
   });
 });
