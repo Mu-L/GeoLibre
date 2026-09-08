@@ -1,8 +1,10 @@
 import {
+  cesiumIonAssetId,
   compileFeatureExpression,
   compileQuickFilters,
   DEFAULT_LAYER_STYLE,
   geojsonHasZCoordinates,
+  getCesiumIonToken,
   resolveThreeDTilesRequestHeaders,
   ruleBasedVisibilityFilter,
   transformGeojsonElevation,
@@ -475,6 +477,9 @@ function isSupported(layer: GeoLibreLayer): boolean {
   // `"geojson"` is named explicitly for the case where nothing has loaded yet
   // and there is no collection to recognize it by.
   if (hasGeoJsonCollection(layer) || layer.type === "geojson") return false;
+  // An Ion asset (issue #2290) needs only its id; the token is runtime config
+  // and its absence is reported as a layer error, not as "unsupported".
+  if (cesiumIonAssetId(layer) !== null) return true;
   if (layer.type === "3d-tiles") return Boolean(tilesetUrl(layer));
   if (layer.type === "gaussian-splat" || layer.type === "lidar")
     return isTilesetLayer(layer) || isDecodedPointCloudLayer(layer);
@@ -715,6 +720,7 @@ function needsRebuild(prev: GeoLibreLayer, next: GeoLibreLayer): boolean {
       return prev.geojson !== next.geojson || styleSignature(prev) !== styleSignature(next);
     case "imagery":
       return (
+        cesiumIonAssetId(prev) !== cesiumIonAssetId(next) ||
         (isCogLayer(next) && cogRenderSignature(prev) !== cogRenderSignature(next)) ||
         str(prev.metadata?.tileType) !== str(next.metadata?.tileType) ||
         // The Y-axis convention and the coverage rectangle bake into the
@@ -765,6 +771,7 @@ function needsRebuild(prev: GeoLibreLayer, next: GeoLibreLayer): boolean {
     case "3dtiles":
       return (
         tilesetUrl(prev) !== tilesetUrl(next) ||
+        cesiumIonAssetId(prev) !== cesiumIonAssetId(next) ||
         str(prev.metadata?.sourceKind) !== str(next.metadata?.sourceKind) ||
         JSON.stringify(prev.source.requestHeaders ?? null) !==
           JSON.stringify(next.source.requestHeaders ?? null) ||
@@ -779,8 +786,10 @@ export type PMTilesRasterHeader = Pick<
   "minZoom" | "maxZoom" | "minLon" | "minLat" | "maxLon" | "maxLat"
 >;
 
-/** Injection points for the environment-bound pieces of the sync (tests). */
+/** Injection points for `CesiumLayerSync` (tests, and hosts with their own sources). */
 export interface CesiumLayerSyncDeps {
+  /** The Cesium Ion token asset layers load with; defaults to the runtime environment's. */
+  ionToken?: () => string | undefined;
   /** Loads the COG tiler module; defaults to `import("cog-tiler-wasm")`. */
   loadCogTiler?: () => Promise<CogTilerModule>;
   /**
@@ -989,6 +998,16 @@ export class CesiumLayerSync {
     private readonly readZoom: () => number = () => readMapViewFromCamera(Cesium, viewer).zoom,
     private readonly deps: CesiumLayerSyncDeps = {},
   ) {}
+
+  /**
+   * The Ion token an asset layer loads with. Read at load time rather than at
+   * construction, so a token added in Settings reaches the next sync.
+   */
+  private ionAccessToken(): string {
+    const token = (this.deps.ionToken ?? getCesiumIonToken)();
+    if (!token) throw new Error("Cesium Ion token is not configured (Settings → Environment)");
+    return token;
+  }
 
   /**
    * The WASM COG tiler, loaded on first use and shared by every COG layer.
@@ -1644,7 +1663,13 @@ export class CesiumLayerSync {
         return new Cesium.Resource({ url, headers });
       };
 
-      if (
+      const ionAsset = cesiumIonAssetId(layer);
+      if (ionAsset !== null) {
+        isAsync = true;
+        provider = await Cesium.IonImageryProvider.fromAssetId(ionAsset, {
+          accessToken: this.ionAccessToken(),
+        });
+      } else if (
         layer.type === "raster" &&
         layer.metadata?.sourceKind === ARCGIS_MAP_SERVICE_KIND &&
         str(layer.sourcePath)
@@ -2149,6 +2174,28 @@ export class CesiumLayerSync {
   private async createTileset(entry: LayerEntry): Promise<void> {
     const { Cesium, viewer } = this;
     const layer = entry.layer;
+    const ionAsset = cesiumIonAssetId(layer);
+    if (ionAsset !== null) {
+      try {
+        // `fromIonAssetId` only knows the global default token; resolve the
+        // asset through an IonResource so the app's token is used instead.
+        const resource = await Cesium.IonResource.fromAssetId(ionAsset, {
+          accessToken: this.ionAccessToken(),
+        });
+        const tileset = await Cesium.Cesium3DTileset.fromUrl(resource, {});
+        if (entry.cancelled) {
+          tileset.destroy();
+          return;
+        }
+        viewer.scene.primitives.add(tileset);
+        this.applyTilesetAltitude(tileset, Number(layer.source.altitudeOffset));
+        entry.handle = tileset;
+        this.applyAppearance(entry);
+      } catch (error) {
+        entry.loadError = error instanceof Error ? error.message : String(error);
+      }
+      return;
+    }
     const url = tilesetUrl(layer);
     if (!url) return;
     // Google Photorealistic tiles strip their X-GOOG-API-KEY from the store, so
