@@ -602,10 +602,12 @@ export {
 export {
   maplibrePlanetOpenDataPlugin,
   maplibrePortolanPlugin,
+  cancelStacCatalogRequest,
   maplibreStacCatalogsPlugin,
   PLANET_DISASTER_DATA_CATALOG_URL,
   PLANET_OPEN_DATA_PLUGIN_ID,
   PORTOLAN_PLUGIN_ID,
+  requestStacCatalogUrl,
   setStacLabels,
   STAC_PLUGIN_ID,
   type StacLabels,
