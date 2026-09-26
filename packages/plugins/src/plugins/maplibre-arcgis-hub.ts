@@ -9,8 +9,10 @@ import {
   itemBounds,
   searchArcGisHub,
   type ArcGisHubItem,
+  type ArcGisHubSearchResult,
 } from "./arcgis-hub-api";
 import type { ArcGISLayerType } from "./arcgis-layer";
+import { featureCollectionBounds, searchSocrataCatalog } from "./socrata-api";
 
 export const ARCGIS_HUB_PLUGIN_ID = "maplibre-gl-arcgis-hub";
 const PAGE_SIZE = 20;
@@ -32,16 +34,25 @@ export interface ArcGisHubLabels {
   noResults: string;
   searchError: string;
   showing: (shown: number, total: number) => string;
+  /**
+   * Result count for a catalog whose total is only an upper bound (a Socrata
+   * portal, whose non-spatial tables are dropped as they are read).
+   */
+  showingSome: (shown: number) => string;
   noDescription: string;
   add: string;
   adding: (title: string) => string;
   added: (title: string) => string;
+  /** Shown instead of `added` when a capped export returned its full limit. */
+  addedCapped: (title: string, limit: number) => string;
   addError: string;
   zoom: string;
   download: string;
   preparing: (title: string) => string;
   downloading: (completed: number, total: number, title: string) => string;
   downloadStarted: (title: string) => string;
+  /** Shown instead of `downloadStarted` for an export with a feature cap. */
+  downloadCapped: (title: string, limit: number) => string;
   downloadFirstLayer: (title: string, layerCount: number) => string;
   downloadError: string;
   details: string;
@@ -68,10 +79,13 @@ export const DEFAULT_ARCGIS_HUB_LABELS: ArcGisHubLabels = {
   noResults: "No public datasets found.",
   searchError: "Could not search ArcGIS Hub.",
   showing: (shown, total) => `Showing ${shown} of ${total} datasets.`,
+  showingSome: (shown) => `Datasets shown: ${shown}.`,
   noDescription: "No description provided.",
   add: "Add to map",
   adding: (title) => `Adding ${title}…`,
   added: (title) => `Added ${title}.`,
+  addedCapped: (title, limit) =>
+    `Added ${title}, but only its first ${limit.toLocaleString("en-US")} features were loaded.`,
   addError: "Could not add this dataset.",
   zoom: "Zoom",
   download: "Download",
@@ -79,6 +93,8 @@ export const DEFAULT_ARCGIS_HUB_LABELS: ArcGisHubLabels = {
   downloading: (completed, total, title) =>
     `Downloading ${title}: ${completed} of ${total} features…`,
   downloadStarted: (title) => `Download started for ${title}.`,
+  downloadCapped: (title, limit) =>
+    `Download started for ${title}; the export holds at most ${limit.toLocaleString("en-US")} features.`,
   downloadFirstLayer: (title, layerCount) =>
     `${title} has ${layerCount} layers; only the first was downloaded.`,
   downloadError: "Could not download this dataset.",
@@ -88,7 +104,9 @@ export const DEFAULT_ARCGIS_HUB_LABELS: ArcGisHubLabels = {
 /**
  * One searchable catalog in a plugin's picker, such as a state GIS portal.
  * A Hub site scopes the search to its catalog groups; a catalog without one
- * (or whose site cannot be read) falls back to its organization's items.
+ * (or whose site cannot be read) falls back to its organization's items. A
+ * catalog with a `socrataDomain` is a Socrata portal instead, searched through
+ * the Socrata Discovery API for its spatial datasets.
  */
 export interface ArcGisHubCatalog {
   /** Stable id, unique within the plugin. */
@@ -101,6 +119,12 @@ export interface ArcGisHubCatalog {
   siteId?: string;
   /** ArcGIS organization id, the fallback scope. */
   orgId?: string;
+  /**
+   * Hostname of a Socrata portal (e.g. `data.cityofchicago.org`). Takes the
+   * place of `siteId`/`orgId`; the "current map area" filter does not apply,
+   * since the Socrata catalog has no spatial search.
+   */
+  socrataDomain?: string;
 }
 
 /** A group of catalogs picked together, such as one state's portals. */
@@ -340,9 +364,10 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
     return set.catalogs.find((catalog) => catalog.id === catalogId) ?? set.catalogs[0] ?? null;
   }
 
-  async function visualize(item: ArcGisHubItem): Promise<void> {
+  /** Add the item to the map, resolving to true when a capped export filled its cap. */
+  async function visualize(item: ArcGisHubItem): Promise<boolean> {
     const app = appRef;
-    if (!app) return;
+    if (!app) return false;
     // Own keys only: `type` comes from the portal, and a value such as
     // "constructor" must not resolve to an Object.prototype member.
     const serviceLayerType = Object.hasOwn(SERVICE_LAYER_TYPES, item.type)
@@ -356,7 +381,7 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
         name: item.title,
       });
     } else if (item.type === "GeoJson") {
-      const dataUrl = arcGisHubItemDataUrl(item);
+      const dataUrl = item.dataUrl ?? arcGisHubItemDataUrl(item);
       const response = await fetch(dataUrl);
       if (!response.ok) throw new Error(`GeoJSON download failed with ${response.status}.`);
       // A portal behind sign-in can answer 200 with an HTML login page, so read
@@ -374,13 +399,16 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
       }
       // deactivate() nulls appRef, which can happen while the fetch above is in
       // flight; bail explicitly instead of adding a layer to a torn-down host.
-      if (!appRef) return;
+      if (!appRef) return false;
       app.addGeoJsonLayer(item.title, data, dataUrl);
-      const bounds = itemBounds(item);
+      // A Socrata dataset has no catalog extent, so frame what was loaded.
+      const bounds = itemBounds(item) ?? featureCollectionBounds(data);
       if (bounds) app.fitBounds?.(bounds);
+      return item.featureLimit !== undefined && data.features.length >= item.featureLimit;
     } else {
       throw new Error("This item cannot be visualized directly.");
     }
+    return false;
   }
 
   /**
@@ -414,7 +442,7 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
       );
       return skippedLayers;
     }
-    app.openExternalUrl?.(arcGisHubItemDataUrl(item));
+    app.openExternalUrl?.(item.dataUrl ?? arcGisHubItemDataUrl(item));
     return 0;
   }
 
@@ -493,6 +521,8 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
         // A single portal needs no second picker; its name is in the option.
         catalogSelect.hidden = (set?.catalogs.length ?? 0) < 2;
         openPortal.disabled = !current;
+        // The Socrata catalog cannot search by extent, so the filter is moot.
+        viewOnly.disabled = Boolean(current?.socrataDomain);
       };
       syncCatalogs();
 
@@ -613,8 +643,11 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
           add.disabled = true;
           status.textContent = labels.adding(item.title);
           try {
-            await visualize(item);
-            status.textContent = labels.added(item.title);
+            const capped = await visualize(item);
+            status.textContent =
+              capped && item.featureLimit !== undefined
+                ? labels.addedCapped(item.title, item.featureLimit)
+                : labels.added(item.title);
           } catch (error) {
             console.error(`Could not add the ${config.name} dataset.`, error);
             status.textContent = labels.addError;
@@ -645,10 +678,14 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
           const layerCount = await download(item, downloadController.signal, (completed, total) => {
             status.textContent = labels.downloading(completed, total, item.title);
           });
+          // A capped export is opened, not read, so whether it hit the cap is
+          // unknown; say where the cap is instead.
           status.textContent =
             layerCount > 1
               ? labels.downloadFirstLayer(item.title, layerCount)
-              : labels.downloadStarted(item.title);
+              : item.featureLimit !== undefined
+                ? labels.downloadCapped(item.title, item.featureLimit)
+                : labels.downloadStarted(item.title);
         } catch (error) {
           if ((error as Error).name !== "AbortError") {
             console.error(`Could not download the ${config.name} dataset.`, error);
@@ -665,7 +702,7 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
       // Captured with the card: the picker may move on before Details is clicked.
       const itemPageUrl = catalogSets.length ? detailsPageUrl : pageUrl;
       details.addEventListener("click", () =>
-        appRef?.openExternalUrl?.(arcGisHubItemPageUrl(item, itemPageUrl)),
+        appRef?.openExternalUrl?.(item.pageUrl ?? arcGisHubItemPageUrl(item, itemPageUrl)),
       );
       actions.append(zoom, save, details);
       body.append(title, meta, summary, actions);
@@ -696,8 +733,9 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
       // view-only search with no extent is refused and says so instead. Checked
       // before the abort below, like the empty-query guard, so a refused search
       // leaves the running one alone.
-      const viewBounds = !append && viewOnly.checked ? (appRef?.getViewBounds?.() ?? null) : null;
-      if (!append && viewOnly.checked && !viewBounds) {
+      const viewFilter = viewOnly.checked && !catalog?.socrataDomain;
+      const viewBounds = !append && viewFilter ? (appRef?.getViewBounds?.() ?? null) : null;
+      if (!append && viewFilter && !viewBounds) {
         status.textContent = labels.viewUnavailable;
         return;
       }
@@ -721,41 +759,57 @@ export function createArcGisHubPlugin(config: ArcGisHubPluginConfig): ArcGisHubP
       setBusy(true);
       status.textContent = append ? labels.loadingMore : labels.searching;
       try {
-        let scope: CatalogScope;
-        if (catalog) {
-          const cached = catalogScopes.get(catalog.id);
-          scope = cached ?? (await resolveCatalogScope(catalog, controller.signal));
-          // An organization fallback for a site catalog is not cached, so the
-          // next search retries the site lookup.
-          if (!cached && (scope.groups || !catalog.siteId)) catalogScopes.set(catalog.id, scope);
+        const signal = controller.signal;
+        let scope: CatalogScope = {};
+        let page: ArcGisHubSearchResult;
+        if (catalog?.socrataDomain) {
+          page = await searchSocrataCatalog(catalog.socrataDomain, query, {
+            start,
+            num: PAGE_SIZE,
+            signal,
+          });
         } else {
-          if (config.resolveGroups && !groups) {
-            const resolved = await config.resolveGroups(controller.signal);
-            // An empty group list would silently widen the search to all of
-            // ArcGIS Online, which is not this catalog.
-            if (resolved.length === 0) throw new Error(`${config.name} has no catalog groups.`);
-            groups = resolved;
+          if (catalog) {
+            const cached = catalogScopes.get(catalog.id);
+            scope = cached ?? (await resolveCatalogScope(catalog, signal));
+            // An organization fallback for a site catalog is not cached, so the
+            // next search retries the site lookup.
+            if (!cached && (scope.groups || !catalog.siteId)) catalogScopes.set(catalog.id, scope);
+          } else {
+            if (config.resolveGroups && !groups) {
+              const resolved = await config.resolveGroups(signal);
+              // An empty group list would silently widen the search to all of
+              // ArcGIS Online, which is not this catalog.
+              if (resolved.length === 0) throw new Error(`${config.name} has no catalog groups.`);
+              groups = resolved;
+            }
+            scope = { groups: groups ?? undefined };
           }
-          scope = { groups: groups ?? undefined };
+          page = await searchArcGisHub(query, {
+            start,
+            num: PAGE_SIZE,
+            bbox: activeBbox,
+            groups: scope.groups,
+            orgId: scope.orgId,
+            types: config.types,
+            signal,
+          });
         }
-        const page = await searchArcGisHub(query, {
-          start,
-          num: PAGE_SIZE,
-          bbox: activeBbox,
-          groups: scope.groups,
-          orgId: scope.orgId,
-          types: config.types,
-          signal: controller.signal,
-        });
         if (token !== generation) return;
         // A site catalog's datasets have pages on that site; an organization
         // scope may reach items the site does not list, so use the global Hub.
+        // (A Socrata card carries its own page URL.)
         if (catalog && !append) detailsPageUrl = scope.groups ? catalog.url : undefined;
         page.results.forEach(renderItem);
         total = page.total;
         shown += page.results.length;
         start = page.nextStart;
-        status.textContent = shown === 0 ? labels.noResults : labels.showing(shown, total);
+        status.textContent =
+          shown === 0
+            ? labels.noResults
+            : catalog?.socrataDomain
+              ? labels.showingSome(shown)
+              : labels.showing(shown, total);
         more.hidden = page.nextStart < 1 || shown >= total;
         // Only after a successful page: a failing request must not retry
         // itself in a loop. The button stays as the manual retry.

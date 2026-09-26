@@ -58,6 +58,7 @@ import {
   setArcGisHubLabels,
   setTennesseeGisLabels,
   setUsStateGisLabels,
+  setUsLocalGisLabels,
   type ArcGisHubLabels,
   setOpenDataCatalogLabels,
   setHuggingFaceLabels,
@@ -397,10 +398,13 @@ export function TopToolbar({
       noResults: t("arcgisHub.noResults"),
       searchError: t("arcgisHub.searchError"),
       showing: (shown, total) => t("arcgisHub.showing", { shown, total }),
+      showingSome: (shown) => t("arcgisHub.showingSome", { shown }),
       noDescription: t("arcgisHub.noDescription"),
       add: t("arcgisHub.add"),
       adding: (title) => t("arcgisHub.adding", { title }),
       added: (title) => t("arcgisHub.added", { title }),
+      addedCapped: (title, limit) =>
+        t("arcgisHub.addedCapped", { title, limit: limit.toLocaleString(i18n.language) }),
       addError: t("arcgisHub.addError"),
       zoom: t("arcgisHub.zoom"),
       download: t("arcgisHub.download"),
@@ -408,6 +412,8 @@ export function TopToolbar({
       downloading: (completed, total, title) =>
         t("arcgisHub.downloading", { completed, total, title }),
       downloadStarted: (title) => t("arcgisHub.downloadStarted", { title }),
+      downloadCapped: (title, limit) =>
+        t("arcgisHub.downloadCapped", { title, limit: limit.toLocaleString(i18n.language) }),
       downloadFirstLayer: (title, layerCount) =>
         t("arcgisHub.downloadFirstLayer", { title, layerCount }),
       downloadError: t("arcgisHub.downloadError"),
@@ -433,6 +439,17 @@ export function TopToolbar({
       catalog: t("usStateGis.portal"),
       chooseCatalogSet: t("usStateGis.chooseStateHint"),
       openPortal: t("usStateGis.openPortal"),
+    });
+    setUsLocalGisLabels({
+      ...arcGisHubLabels,
+      hint: t("usLocalGis.hint"),
+      searchPlaceholder: t("usLocalGis.searchPlaceholder"),
+      noResults: t("usLocalGis.noResults"),
+      searchError: t("usLocalGis.searchError"),
+      catalogSet: t("usLocalGis.chooseState"),
+      catalog: t("usLocalGis.portal"),
+      chooseCatalogSet: t("usLocalGis.chooseStateHint"),
+      openPortal: t("usLocalGis.openPortal"),
     });
     setOpenDataCatalogLabels({
       socrataHint: t("openDataCatalogs.socrataHint"),
