@@ -3327,6 +3327,7 @@
       "maplibre-gl-esri-wayback": "Tarihsel Görüntüler",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "OSM İndirici",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "STAC Katalogları",
@@ -3958,6 +3959,12 @@
     "downloadFirstLayer": "{{title}} {{layerCount}} katman içeriyor; yalnızca ilki indirildi.",
     "downloadError": "Bu veri kümesi indirilemedi.",
     "details": "Ayrıntılar"
+  },
+  "tennesseeGis": {
+    "hint": "Tennessee Eyaleti'nin (geodata.tn.gov) herkese açık CBS verilerine göz atın ve arayın. Katmanları haritaya ekleyin veya verileri indirin.",
+    "searchPlaceholder": "Tennessee CBS verilerinde ara",
+    "noResults": "Eşleşen Tennessee veri kümesi bulunamadı.",
+    "searchError": "Tennessee CBS portalında arama yapılamadı."
   },
   "openDataCatalogs": {
     "socrataHint": "Herkese açık Socrata açık veri kataloglarında arama yapın ve GeoJSON veri kümeleri ekleyin.",

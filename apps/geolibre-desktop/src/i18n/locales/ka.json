@@ -3327,6 +3327,7 @@
       "maplibre-gl-esri-wayback": "ისტორიული სურათები",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "OSM ჩამომტვირთველი",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "STAC კატალოგები",
@@ -3958,6 +3959,12 @@
     "downloadFirstLayer": "{{title}} შეიცავს {{layerCount}} შრეს; ჩამოიტვირთა მხოლოდ პირველი.",
     "downloadError": "ამ მონაცემთა ნაკრების ჩამოტვირთვა ვერ მოხერხდა.",
     "details": "დეტალები"
+  },
+  "tennesseeGis": {
+    "hint": "დაათვალიერეთ და მოძებნეთ ტენესის შტატის საჯარო GIS მონაცემები (geodata.tn.gov). დაამატეთ ფენები რუკაზე ან ჩამოტვირთეთ მონაცემები.",
+    "searchPlaceholder": "ტენესის GIS მონაცემების ძიება",
+    "noResults": "ტენესის შესაბამისი მონაცემთა ნაკრები ვერ მოიძებნა.",
+    "searchError": "ტენესის GIS პორტალში ძიება ვერ მოხერხდა."
   },
   "openDataCatalogs": {
     "socrataHint": "მოძებნეთ Socrata-ს საჯარო ღია მონაცემთა კატალოგებში და დაამატეთ GeoJSON ნაკრებები.",

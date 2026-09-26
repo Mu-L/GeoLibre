@@ -3327,6 +3327,7 @@
       "maplibre-gl-esri-wayback": "تصاویر تاریخی",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "بارگیر OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "فهرست‌های STAC",
@@ -3958,6 +3959,12 @@
     "downloadFirstLayer": "{{title}} دارای {{layerCount}} لایه است؛ تنها نخستین لایه دانلود شد.",
     "downloadError": "دانلود این مجموعه‌داده ممکن نشد.",
     "details": "جزئیات"
+  },
+  "tennesseeGis": {
+    "hint": "داده‌های عمومی GIS ایالت تنسی (geodata.tn.gov) را مرور و جست‌وجو کنید. لایه‌ها را به نقشه اضافه کنید یا داده‌ها را دانلود کنید.",
+    "searchPlaceholder": "جست‌وجوی داده‌های GIS تنسی",
+    "noResults": "هیچ مجموعه‌داده منطبقی از تنسی یافت نشد.",
+    "searchError": "جست‌وجو در درگاه GIS تنسی ممکن نشد."
   },
   "openDataCatalogs": {
     "socrataHint": "فهرست‌های دادهٔ باز عمومی Socrata را جستجو کنید و مجموعه‌داده‌های GeoJSON را بیفزایید.",

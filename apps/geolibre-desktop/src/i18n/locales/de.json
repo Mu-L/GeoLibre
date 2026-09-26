@@ -3327,6 +3327,7 @@
       "maplibre-gl-esri-wayback": "Historische Bilder",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "OSM-Downloader",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "STAC-Kataloge",
@@ -3958,6 +3959,12 @@
     "downloadFirstLayer": "{{title}} hat {{layerCount}} Ebenen; nur die erste wurde heruntergeladen.",
     "downloadError": "Dieser Datensatz konnte nicht heruntergeladen werden.",
     "details": "Details"
+  },
+  "tennesseeGis": {
+    "hint": "Öffentliche GIS-Daten des Bundesstaats Tennessee (geodata.tn.gov) durchsuchen. Layer zur Karte hinzufügen oder Daten herunterladen.",
+    "searchPlaceholder": "Tennessee-GIS-Daten durchsuchen",
+    "noResults": "Keine passenden Tennessee-Datensätze gefunden.",
+    "searchError": "Das GIS-Portal von Tennessee konnte nicht durchsucht werden."
   },
   "openDataCatalogs": {
     "socrataHint": "Öffentliche Socrata-Open-Data-Kataloge durchsuchen und GeoJSON-Datensätze hinzufügen.",

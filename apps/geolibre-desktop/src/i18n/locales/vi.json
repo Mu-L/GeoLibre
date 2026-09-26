@@ -3283,6 +3283,7 @@
       "maplibre-gl-esri-wayback": "Hình ảnh lịch sử",
       "maplibre-gl-openaerialmap": "MởBản đồ trên không",
       "maplibre-gl-arcgis-hub": "Trung tâm ArcGIS",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "Trình tải xuống OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "Sơ đồ cơ sở OpenStreetMap",
@@ -3899,6 +3900,12 @@
     "preparing": "Đang chuẩn bị {{title}}…",
     "downloading": "Đang tải xuống {{title}}: {{completed}} trong số {{total}} tính năng…",
     "downloadStarted": "Đã bắt đầu tải xuống cho {{title}}."
+  },
+  "tennesseeGis": {
+    "hint": "Duyệt và tìm kiếm dữ liệu GIS công khai của Tiểu bang Tennessee (geodata.tn.gov). Thêm lớp vào bản đồ hoặc tải dữ liệu xuống.",
+    "searchPlaceholder": "Tìm dữ liệu GIS Tennessee",
+    "noResults": "Không tìm thấy bộ dữ liệu Tennessee phù hợp.",
+    "searchError": "Không thể tìm kiếm trên cổng GIS Tennessee."
   },
   "openDataCatalogs": {
     "socrataHint": "Tìm kiếm các danh mục dữ liệu mở Socrata công khai và thêm bộ dữ liệu GeoJSON.",

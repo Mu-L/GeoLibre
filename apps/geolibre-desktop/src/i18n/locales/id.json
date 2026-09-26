@@ -3276,6 +3276,7 @@
       "maplibre-gl-esri-wayback": "Citra Historis",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "Pengunduh OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "Katalog STAC",
@@ -3899,6 +3900,12 @@
     "downloadFirstLayer": "{{title}} memiliki {{layerCount}} layer; hanya yang pertama yang diunduh.",
     "downloadError": "Tidak dapat mengunduh kumpulan data ini.",
     "details": "Detail"
+  },
+  "tennesseeGis": {
+    "hint": "Jelajahi dan cari data GIS publik dari Negara Bagian Tennessee (geodata.tn.gov). Tambahkan layer ke peta atau unduh data.",
+    "searchPlaceholder": "Cari data GIS Tennessee",
+    "noResults": "Tidak ditemukan dataset Tennessee yang cocok.",
+    "searchError": "Tidak dapat mencari di portal GIS Tennessee."
   },
   "openDataCatalogs": {
     "socrataHint": "Cari di katalog data terbuka Socrata publik dan tambahkan kumpulan data GeoJSON.",

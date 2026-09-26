@@ -3530,6 +3530,7 @@
       "maplibre-gl-esri-wayback": "الصور التاريخية",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "مُنزِّل OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "كتالوجات STAC",
@@ -4193,6 +4194,12 @@
     "downloadFirstLayer": "يحتوي {{title}} على {{layerCount}} طبقة؛ لم تُنزَّل سوى الأولى.",
     "downloadError": "تعذّر تنزيل مجموعة البيانات هذه.",
     "details": "التفاصيل"
+  },
+  "tennesseeGis": {
+    "hint": "تصفّح بيانات نظم المعلومات الجغرافية العامة لولاية تينيسي وابحث فيها (geodata.tn.gov). أضف الطبقات إلى الخريطة أو نزّل البيانات.",
+    "searchPlaceholder": "ابحث في بيانات GIS لولاية تينيسي",
+    "noResults": "لم يُعثر على مجموعات بيانات مطابقة لولاية تينيسي.",
+    "searchError": "تعذّر البحث في بوابة GIS لولاية تينيسي."
   },
   "openDataCatalogs": {
     "socrataHint": "ابحث في فهارس البيانات المفتوحة العامة من Socrata وأضف مجموعات بيانات GeoJSON.",

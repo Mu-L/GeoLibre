@@ -3276,6 +3276,7 @@
       "maplibre-gl-esri-wayback": "ภาพถ่ายย้อนหลัง",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "ตัวดาวน์โหลด OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "แคตตาล็อก STAC",
@@ -3899,6 +3900,12 @@
     "downloadFirstLayer": "{{title}} มี {{layerCount}} เลเยอร์ ระบบดาวน์โหลดเฉพาะเลเยอร์แรกเท่านั้น",
     "downloadError": "ไม่สามารถดาวน์โหลดชุดข้อมูลนี้ได้",
     "details": "รายละเอียด"
+  },
+  "tennesseeGis": {
+    "hint": "เรียกดูและค้นหาข้อมูล GIS สาธารณะของรัฐเทนเนสซี (geodata.tn.gov) เพิ่มชั้นข้อมูลลงในแผนที่หรือดาวน์โหลดข้อมูล",
+    "searchPlaceholder": "ค้นหาข้อมูล GIS ของเทนเนสซี",
+    "noResults": "ไม่พบชุดข้อมูลของเทนเนสซีที่ตรงกัน",
+    "searchError": "ไม่สามารถค้นหาในพอร์ทัล GIS ของเทนเนสซีได้"
   },
   "openDataCatalogs": {
     "socrataHint": "ค้นหาแคตตาล็อกข้อมูลเปิดสาธารณะของ Socrata แล้วเพิ่มชุดข้อมูล GeoJSON",

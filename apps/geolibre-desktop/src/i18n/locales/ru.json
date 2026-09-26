@@ -3429,6 +3429,7 @@
       "maplibre-gl-esri-wayback": "Исторические снимки",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "Загрузчик OSM",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "Каталоги STAC",
@@ -4076,6 +4077,12 @@
     "downloadFirstLayer": "Слоёв в наборе данных «{{title}}»: {{layerCount}}. Скачан только первый.",
     "downloadError": "Не удалось скачать этот набор данных.",
     "details": "Подробности"
+  },
+  "tennesseeGis": {
+    "hint": "Просматривайте и ищите открытые ГИС-данные штата Теннесси (geodata.tn.gov). Добавляйте слои на карту или скачивайте данные.",
+    "searchPlaceholder": "Поиск ГИС-данных Теннесси",
+    "noResults": "Подходящие наборы данных Теннесси не найдены.",
+    "searchError": "Не удалось выполнить поиск на ГИС-портале Теннесси."
   },
   "openDataCatalogs": {
     "socrataHint": "Поиск в общедоступных каталогах открытых данных Socrata и добавление наборов данных GeoJSON.",

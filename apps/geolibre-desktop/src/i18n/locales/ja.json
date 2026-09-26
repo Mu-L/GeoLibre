@@ -3276,6 +3276,7 @@
       "maplibre-gl-esri-wayback": "過去の衛星画像",
       "maplibre-gl-openaerialmap": "OpenAerialMap",
       "maplibre-gl-arcgis-hub": "ArcGIS Hub",
+      "geolibre-tennessee-gis": "Tennessee GIS",
       "geolibre-osm-downloader": "OSM ダウンローダー",
       "geolibre-ign-lidar-hd": "IGN LiDAR HD Downloader",
       "geolibre-stac-catalogs": "STAC カタログ",
@@ -3899,6 +3900,12 @@
     "downloadFirstLayer": "{{title}} には {{layerCount}} 個のレイヤーがあります。最初の1つだけをダウンロードしました。",
     "downloadError": "このデータセットをダウンロードできませんでした。",
     "details": "詳細"
+  },
+  "tennesseeGis": {
+    "hint": "テネシー州の公開 GIS データ（geodata.tn.gov）を閲覧・検索します。レイヤーを地図に追加するか、データをダウンロードできます。",
+    "searchPlaceholder": "テネシー州の GIS データを検索",
+    "noResults": "一致するテネシー州のデータセットが見つかりません。",
+    "searchError": "テネシー州 GIS ポータルを検索できませんでした。"
   },
   "openDataCatalogs": {
     "socrataHint": "公開されている Socrata オープンデータカタログを検索し、GeoJSON データセットを追加します。",

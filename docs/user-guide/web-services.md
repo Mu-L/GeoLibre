@@ -28,6 +28,7 @@ They are grouped together because they behave the same way, not because they sha
 | [OpenAerialMap](#openaerialmap) | OpenAerialMap | Openly licensed drone and aerial imagery |
 | [OSM Downloader](#osm-downloader) | OpenStreetMap / Overpass | Buildings, roads, amenities, waterways, land use, or custom OSM tags |
 | [ArcGIS Hub](#arcgis-hub) | Esri | Public datasets published to ArcGIS Hub |
+| [Tennessee GIS](#tennessee-gis) | State of Tennessee | The geodata.tn.gov open GIS data portal |
 | [Socrata](#socrata) | Socrata | Government open-data portals |
 | [CKAN](#ckan) | HDX | Humanitarian Data Exchange resources |
 | [STAC Catalogs](#stac-catalogs) | any STAC | Any STAC API or static catalog, via STAC Index |
@@ -144,9 +145,17 @@ Searches public datasets published to [ArcGIS Hub](https://hub.arcgis.com/).
 - Search by keyword, or tick **Search the current map area** to restrict results to the view.
 - Each card shows the description and links out to the dataset's Hub page.
 - **Add to map** loads supported layers, **Zoom** frames them, and **Download** saves the data. A dataset with several layers downloads only the first, and the panel tells you so.
-- Results are paged: the panel shows how many of the total you are looking at, with **Load more** to continue.
+- Results are paged: the panel shows how many of the total you are looking at, and the next page loads as you scroll to the end of the list (**Load more** does the same by hand).
 
 ![The ArcGIS Hub panel showing search results for national park boundaries, with the NPS feature service added to the map](https://assets.geolibre.app/images/web-services-arcgis-hub.webp)
+
+## Tennessee GIS
+
+Browses the State of Tennessee's [downloadable GIS data portal](https://geodata.tn.gov/) — roads, boundaries, parcels, hydrography, wildlife management areas, state parks, and the other datasets state agencies publish there.
+
+- The panel lists the whole catalog as soon as it opens, alphabetically; type a keyword to narrow it. **Search the current map area** starts off, since most layers are statewide.
+- **Add to map** loads feature services as editable vector layers and map or image services (such as statewide imagery) as raster layers. **Zoom** and **Details** work as in ArcGIS Hub, and Details opens the dataset's page on geodata.tn.gov. **Download** saves feature services as GeoJSON; map and image services only render imagery, so they have nothing to download.
+- The portal is an ArcGIS Hub site, so the panel searches the groups that make up its catalog. It reads that list from the site when it opens, so datasets the state adds show up without a GeoLibre update.
 
 ## Socrata
 
