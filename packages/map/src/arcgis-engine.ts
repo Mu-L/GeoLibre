@@ -134,15 +134,19 @@ const HOSTED_CONTROLS: ReadonlySet<BuiltInMapControl> = new Set<BuiltInMapContro
   "attribution",
 ]);
 
-/** Mount order within a corner, matching `MapController.init`. */
+/**
+ * Order within a corner, matching MapLibre: `MapController.init` adds the
+ * built-ins in this order, and the layer control mounts after them once the
+ * style loads.
+ */
 const HOSTED_CONTROL_ORDER: readonly BuiltInMapControl[] = [
-  "layer-control",
   "fullscreen",
   "compass",
   "navigation",
   "geolocate",
   "globe",
   "scale",
+  "layer-control",
 ];
 
 /**
@@ -300,10 +304,38 @@ function mapRendererSymbols(
       };
 }
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** A 16px outline globe, the size of the SDK's own widget icons. */
+function createGlobeGlyph(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
+  const circle = document.createElementNS(SVG_NS, "circle");
+  circle.setAttribute("cx", "8");
+  circle.setAttribute("cy", "8");
+  circle.setAttribute("r", "6.5");
+  const meridians = document.createElementNS(SVG_NS, "ellipse");
+  meridians.setAttribute("cx", "8");
+  meridians.setAttribute("cy", "8");
+  meridians.setAttribute("rx", "2.75");
+  meridians.setAttribute("ry", "6.5");
+  const parallels = document.createElementNS(SVG_NS, "path");
+  parallels.setAttribute("d", "M1.5 8h13M2.6 4.75h10.8M2.6 11.25h10.8");
+  svg.append(circle, meridians, parallels);
+  return svg;
+}
+
 /**
  * The on-map globe/Mercator toggle. The SDK has no such widget, so this is a
- * plain button carrying MapLibre's `GlobeControl` classes, as the Mapbox
- * engine's toggle does, so the same glyph and "enabled" styling apply.
+ * plain button carrying MapLibre's `GlobeControl` state classes, as the Mapbox
+ * engine's toggle does. It wears Esri's widget classes and draws its glyph in
+ * `currentColor`, so the SDK theme sizes and colours it like the widgets
+ * beside it in both light and dark mode.
  * Toggling rebuilds the view (a `MapView` cannot become a globe), which is the
  * canvas's job; the button only reports the click.
  */
@@ -312,16 +344,13 @@ function createGlobeToggle(
   onToggle: (projection: MapProjection) => void,
 ): ArcgisWidget {
   const container = document.createElement("div");
-  container.className = "maplibregl-ctrl maplibregl-ctrl-group geolibre-arcgis-globe";
+  container.className = "esri-widget geolibre-arcgis-globe";
   const button = document.createElement("button");
   button.type = "button";
-  const icon = document.createElement("span");
-  icon.className = "maplibregl-ctrl-icon";
-  icon.setAttribute("aria-hidden", "true");
-  button.append(icon);
+  button.append(createGlobeGlyph());
   let globe = projection === "globe";
   const paint = () => {
-    button.className = globe ? "maplibregl-ctrl-globe-enabled" : "maplibregl-ctrl-globe";
+    button.className = `esri-widget--button ${globe ? "maplibregl-ctrl-globe-enabled" : "maplibregl-ctrl-globe"}`;
     const label = globe ? "Disable globe" : "Enable globe";
     button.title = label;
     button.setAttribute("aria-label", label);
@@ -537,6 +566,8 @@ export class ArcgisEngine implements MapEngine {
   private storyCameraToken = 0;
   /** Whether the camera move in progress is a story chapter's or preview's. */
   private storyMove = false;
+  /** Open `suspendNavigation` holds; Ctrl-drag steering waits for none. */
+  private navigationSuspensions = 0;
   private storyMoveLapse: ReturnType<typeof setTimeout> | undefined;
   /** Integer zoom the zoom-dependent plans were compiled at. */
   private compiledZoom: number;
@@ -668,6 +699,7 @@ export class ArcgisEngine implements MapEngine {
           this.storyMove = false;
         }),
       );
+    this.handles.add(this.bindCtrlDragRotate(view));
     // Only the keys that move the camera; a Shift press does not.
     this.handles.add(
       view.on("key-down", (event) => {
@@ -755,6 +787,52 @@ export class ArcgisEngine implements MapEngine {
       ...(bearing === undefined ? {} : { heading: normalizeBearing(bearing) }),
       ...(pitch === undefined ? {} : { tilt: this.clampPitch(pitch) }),
     };
+  }
+  /**
+   * MapLibre's Ctrl+drag: horizontal movement rotates and vertical movement
+   * tilts, at MapLibre's rates. The SDK binds neither to a modifier (a scene
+   * orbits on right-drag), so a Ctrl drag steers the camera itself. A flat
+   * `MapView` only rotates.
+   *
+   * @param view The view whose drags to steer.
+   * @returns The handle that removes the listener.
+   */
+  private bindCtrlDragRotate(view: ArcgisView): ArcgisHandle {
+    // The camera the drag steers to, accumulated from the drag's start: an
+    // unanimated goTo may not have landed before the next update, so reading
+    // the live camera each time would drop part of the movement.
+    let drag: { x: number; y: number; bearing: number; pitch: number } | null = null;
+    return view.on("drag", (event) => {
+      if (event.action === "start") {
+        const native = event.native as MouseEvent | undefined;
+        drag =
+          native?.ctrlKey && (event.button ?? 0) === 0 && this.navigationSuspensions === 0
+            ? {
+                x: event.x,
+                y: event.y,
+                bearing: this.bearing(),
+                pitch: this.sceneView()?.camera?.tilt ?? 0,
+              }
+            : null;
+      }
+      if (!drag) return;
+      event.stopPropagation();
+      const dx = event.x - drag.x;
+      const dy = event.y - drag.y;
+      const steer = drag;
+      if (event.action === "end") drag = null;
+      if (dx === 0 && dy === 0) return;
+      steer.x = event.x;
+      steer.y = event.y;
+      // Suspended mid-drag: keep the gesture from reaching the SDK and hold
+      // the camera, discarding the movement so resuming does not jump.
+      if (this.navigationSuspensions > 0) return;
+      steer.bearing += dx * 0.8;
+      // Clamped as it accumulates, so reversing from the limit responds at once.
+      steer.pitch = this.clampPitch(steer.pitch - dy * 0.5);
+      const target = this.orientation(steer.bearing, steer.pitch);
+      void this.view?.goTo(target, { animate: false }).catch(reportGoToFailure);
+    });
   }
   private clampPitch(pitch: number): number {
     const max = this.preferences ? Math.min(85, Math.max(0, this.preferences.maxPitch)) : 85;
@@ -2555,7 +2633,13 @@ export class ArcgisEngine implements MapEngine {
       view.on("key-down", swallow),
       view.on("mouse-wheel", swallow),
     ];
+    this.navigationSuspensions++;
+    let released = false;
     return () => {
+      if (!released) {
+        released = true;
+        this.navigationSuspensions--;
+      }
       for (const handle of handles) handle.remove();
       if (this.view) {
         this.view.navigation.mouseWheelZoomEnabled = wheel;
@@ -2595,11 +2679,17 @@ export class ArcgisEngine implements MapEngine {
         return new widgets.Zoom({ view });
       case "fullscreen":
         return new widgets.Fullscreen({ view, element: view.container ?? undefined });
-      case "compass":
-        return new widgets.Compass({
+      case "compass": {
+        const compass = new widgets.Compass({
           view,
           ...(this.compassLabel ? { label: this.compassLabel } : {}),
         });
+        // The SDK's compass only restores the heading; MapLibre's also levels
+        // the pitch, so a click resets both.
+        const viewModel = (compass as { viewModel?: { reset?: () => void } }).viewModel;
+        if (viewModel) viewModel.reset = () => this.resetNorthPitch();
+        return compass;
+      }
       case "geolocate":
         return new widgets.Locate({ view });
       case "globe":
@@ -2624,7 +2714,19 @@ export class ArcgisEngine implements MapEngine {
     if (!this.view || this.builtInControls.has(id)) return;
     const widget = this.createBuiltInControl(id);
     if (!widget) return;
-    this.view.ui.add(widget.uiComponent ?? widget, this.controlPositions[id]);
+    // The SDK appends by default, so a control mounted after its neighbours
+    // (shown again from the Controls menu, or a toggle that lands after the
+    // view is built) would drift out of order. Slot it after the built-ins
+    // that precede it in the same corner.
+    const position = this.controlPositions[id];
+    const rank = HOSTED_CONTROL_ORDER.indexOf(id);
+    let index = 0;
+    for (const other of this.builtInControls.keys()) {
+      const otherRank = HOSTED_CONTROL_ORDER.indexOf(other);
+      if (otherRank !== -1 && otherRank < rank && this.controlPositions[other] === position)
+        index++;
+    }
+    this.view.ui.add(widget.uiComponent ?? widget, { position, index });
     this.builtInControls.set(id, widget);
   }
   private unmountBuiltInControl(id: BuiltInMapControl): void {
